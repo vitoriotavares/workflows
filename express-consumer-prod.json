@@ -1,0 +1,313 @@
+{
+  "createdAt": "2025-05-30T19:47:24.255Z",
+  "updatedAt": "2025-06-12T01:34:24.997Z",
+  "id": "4zBFYy8VyWBBEiMg",
+  "name": "Express  Consumer",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "pop",
+        "list": "queue:express",
+        "options": {
+          "dotNotation": true
+        }
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        620,
+        280
+      ],
+      "id": "dc0d07af-3fcf-40e8-a1f3-f978b6462ff1",
+      "name": "Pop Express Queue",
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $input.first()?.json;\n\nif (!inputData || !inputData.propertyName) {\n console.log('Express Consumer: Nenhuma mensagem na fila');\n return []; // Termina execução sem erro\n}\nconst queueData = $input.first().json.propertyName;\nconst messageData = queueData.originalMessage;\nconst classification = queueData.classification;\nconst routing = queueData.routing;\n\n// Extrair texto da mensagem\nconst messageText = messageData.messageText || messageData.imageCaption || '';\n\n// Determinar resposta baseada em patterns simples\nfunction generateExpressResponse(text) {\n  const lowerText = text.toLowerCase().trim();\n  \n  // Cumprimentos\n  if (/^(oi|olá|hey|e aí|salve)/.test(lowerText)) {\n    return \"Oi! 👋 Sou o Dieta Fácil, seu assistente nutricional. Como posso ajudar você hoje?\";\n  }\n  \n  if (/^(bom dia)/.test(lowerText)) {\n    return \"Bom dia! ☀️ Pronto para cuidar da sua alimentação hoje?\";\n  }\n  \n  if (/^(boa tarde)/.test(lowerText)) {\n    return \"Boa tarde! 🌤️ Como está sua alimentação hoje?\";\n  }\n  \n  if (/^(boa noite)/.test(lowerText)) {\n    return \"Boa noite! 🌙 Vamos revisar como foi sua alimentação hoje?\";\n  }\n  \n  // Como está / Status\n  if (/^(como (está|vai|anda)|tudo bem)/.test(lowerText)) {\n    return \"Estou aqui e pronto para ajudar! 💪 Registre suas refeições para acompanharmos sua dieta.\";\n  }\n  \n  if (/^(como estou|status)/.test(lowerText)) {\n    return \"Para ver seu status de hoje, me conte o que você comeu ou digite 'resumo' 📊\";\n  }\n  \n  // Confirmações\n  if (/^(ok|okay|entendi|beleza|show|perfeito|legal)/.test(lowerText)) {\n    return \"Perfeito! ✅ Continue registrando suas refeições para manter o controle.\";\n  }\n  \n  if (/^(obrigad|brigad|vlw|thanks)/.test(lowerText)) {\n    return \"Por nada! 😊 Estou sempre aqui para ajudar com sua nutrição.\";\n  }\n  \n  // Menu/Ajuda\n  if (/^(menu|ajuda|help|comandos)/.test(lowerText)) {\n    return `🍽️ *Menu Dieta Fácil*\\n\\n📝 *Registrar:*\\n• \"Comi [alimento]\" - Registra refeição\\n• \"Bebi [quantidade]ml\" - Registra água\\n\\n📊 *Consultar:*\\n• \"Resumo\" - Ver total do dia\\n• \"Como estamos\" - Status geral\\n\\n❓ *Dúvidas:*\\n• \"Posso comer [alimento]?\"\\n• \"Quantas calorias tem [alimento]?\"\\n\\n💡 *Dica:* Envie fotos dos seus pratos para análise automática!`;\n  }\n  \n  // Cancelar/Sair\n  if (/^(cancelar|sair|parar|tchau|até)/.test(lowerText)) {\n    return \"Até logo! 👋 Volte sempre que quiser cuidar da sua alimentação.\";\n  }\n  \n  // Fallback para mensagens não classificadas corretamente\n  return \"Olá! 👋 Para uma resposta mais detalhada, descreva melhor sua solicitação. Use 'menu' para ver os comandos disponíveis.\";\n}\n\nconst response = generateExpressResponse(messageText.messageText);\n\nreturn [{\n  json: {\n    queueData: queueData,\n    messageData: messageData,\n    response: response,\n    processingTime: Date.now(),\n    estimatedTokens: 100 // Respostas pré-definidas usam poucos tokens\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        280
+      ],
+      "id": "55585eb4-4fbb-4cbd-a72c-90cc2b96ff70",
+      "name": "Generate Express Response"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "Dieta Facil Dev",
+        "remoteJid": "={{ $json.messageData.phoneNumber.split('@')[0] }}",
+        "messageText": "={{ $json.response }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        1080,
+        280
+      ],
+      "id": "f89129c6-12d1-4677-bb4c-076559fdded7",
+      "name": "Send Express Response",
+      "credentials": {
+        "evolutionApi": {
+          "id": "8Vyn5rMuwjwiaAUs",
+          "name": "Instancia Dev"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "message_classifications",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "phone_number",
+              "fieldValue": "={{ $('Generate Express Response').item.json.queueData.originalMessage.phoneNumber.split('@')[0] }}"
+            },
+            {
+              "fieldId": "message_text",
+              "fieldValue": "={{ $('Generate Express Response').item.json.queueData.originalMessage.messageText }}"
+            },
+            {
+              "fieldId": "message_type",
+              "fieldValue": "={{ $('Generate Express Response').item.json.queueData.originalMessage.messageType }}"
+            },
+            {
+              "fieldId": "classification_type",
+              "fieldValue": "={{ $('Generate Express Response').item.json.queueData.classification.type }}"
+            },
+            {
+              "fieldId": "confidence",
+              "fieldValue": "={{ $('Generate Express Response').item.json.queueData.classification.confidence }}"
+            },
+            {
+              "fieldId": "queue_name",
+              "fieldValue": "queue:express"
+            },
+            {
+              "fieldId": "model_assigned",
+              "fieldValue": "none"
+            },
+            {
+              "fieldId": "estimated_tokens",
+              "fieldValue": "={{ $('Generate Express Response').item.json.queueData.routing.estimatedTokens }}"
+            },
+            {
+              "fieldId": "analysis_data",
+              "fieldValue": "={{ $('Generate Express Response').item.json.queueData.analysis }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "completed"
+            },
+            {
+              "fieldId": "actual_tokens_used",
+              "fieldValue": "={{ $('Generate Express Response').item.json.estimatedTokens }}"
+            },
+            {
+              "fieldId": "actual_cost_usd",
+              "fieldValue": "0.0001"
+            },
+            {
+              "fieldId": "processing_time_ms",
+              "fieldValue": "={{ Date.now() - $('Generate Express Response').item.json.processingTime }}"
+            },
+            {
+              "fieldId": "processed_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        280
+      ],
+      "id": "493a49e4-2959-43d5-b6a3-02122291f9cc",
+      "name": "Create Classification Log",
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "incr",
+        "key": "metrics:express:completed"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1500,
+        280
+      ],
+      "id": "aa62bff6-ad09-4410-801d-37bec4fa1bef",
+      "name": "Increment Completed Metric",
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "metrics:express:last_processed",
+        "value": "={{ Date.now() }}",
+        "keyType": "string"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1500,
+        500
+      ],
+      "id": "6eef2776-5999-4762-8a6b-50858a22cd7f",
+      "name": "Update Last Processed",
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 5
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        380,
+        280
+      ],
+      "id": "478f5687-5ebc-4e1c-8958-3b0fd7c81e73",
+      "name": "Schedule Trigger"
+    }
+  ],
+  "connections": {
+    "Pop Express Queue": {
+      "main": [
+        [
+          {
+            "node": "Generate Express Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Express Response": {
+      "main": [
+        [
+          {
+            "node": "Send Express Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Express Response": {
+      "main": [
+        [
+          {
+            "node": "Create Classification Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Classification Log": {
+      "main": [
+        [
+          {
+            "node": "Increment Completed Metric",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Increment Completed Metric": {
+      "main": [
+        [
+          {
+            "node": "Update Last Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Pop Express Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": {
+    "node:Schedule Trigger": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {
+    "Pop Express Queue": [
+      {
+        "json": {
+          "propertyName": null
+        }
+      }
+    ]
+  },
+  "versionId": "f44e192a-8808-4c7d-a0af-d7230f65902a",
+  "triggerCount": 1,
+  "tags": [
+    {
+      "createdAt": "2025-06-12T01:32:55.697Z",
+      "updatedAt": "2025-06-12T01:32:55.697Z",
+      "id": "n356g3fK510OWbD4",
+      "name": "prod"
+    },
+    {
+      "createdAt": "2025-05-30T11:31:18.780Z",
+      "updatedAt": "2025-05-30T11:31:18.780Z",
+      "id": "MkMWJqdLSlMeJZ5k",
+      "name": "claude_solution"
+    }
+  ]
+}
