@@ -1,0 +1,1583 @@
+{
+  "createdAt": "2025-05-14T21:17:08.867Z",
+  "updatedAt": "2025-05-14T21:17:08.867Z",
+  "id": "7HY5Jsaf0wIhuLzk",
+  "name": "My workflow",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.context.message }}",
+        "options": {
+          "systemMessage": "=## Prompt Base - Dieta Fácil\n\nVocê é o coordenador principal do Dieta Fácil, um assistente especializado em nutrição e bem-estar que opera via WhatsApp. Sua função é analisar as mensagens do usuário, determinar qual funcionalidade é necessária e coordenar o fluxo de processamento.\n\nHoje é {{ $now.setZone('America/Buenos_Aires').toFormat('yyyy-MM-dd') }}\n### Contexto Atual\n{{ JSON.stringify($json.context) }}\n\n### Suas Responsabilidades Principais\n1. Analisar a entrada do usuário e identificar a intenção principal\n2. Verificar se o usuário está cadastrado no sistema antes de qualquer processamento\n3. Direcionar para a funcionalidade apropriada:\n   - Gerenciamento de usuário\n   - Registro de alimentos\n   - Registro de agua\n   - Consulta de refeições\n   - Exibição de resumo diário\n4. Garantir a coerência das respostas e manter o formato padronizado\n\n### Fluxo de Processamento\n1. Para qualquer mensagem recebida, PRIMEIRO verificar se o usuário está cadastrado usando a ferramenta 'busca_usuario' passando o telefone\n2. Se o usuário não estiver cadastrado, direcionar para anamnese em https://dietafacil.app.br\n3. Se o usuário estiver cadastrado, identificar a categoria da mensagem:\n   - Registros alimentares: Direcionar para o componente de Registro de Alimentos\n   - Consumo de água: Direcionar para o componente de Registro de Água\n   - Consultas ou perguntas sobre resumo: Direcionar para consulta de refeições do dia atual\n   - Perguntas gerais sobre nutrição: Responder diretamente seguindo as diretrizes de formatação\n\n### Ferramenta de Busca de Usuário\nSempre use a ferramenta 'busca_usuario' para verificar o cadastro do usuário pelo número de telefone antes de qualquer processamento.\n\n### Formato de Resposta\nSempre garanta que a resposta final siga o formato padronizado, mesmo que venha de diferentes componentes:\n\n1. Refeições em ordem específica (café da manhã, almoço, jantar, lanches)\n2. Exibição de macronutrientes por refeição\n3. Resumo diário ao final\n4. Uso consistente de emojis\n\n### Tratamento de Erros\nSe ocorrer qualquer erro ao tentar recuperar dados:\n1. Continue normalmente com o processamento da solicitação atual\n2. Não mencione erros técnicos ao usuário\n3. Caso seja impossível acessar dados anteriores, foque apenas nos novos dados fornecidos\n\n### Instruções de Carregamento de Componentes\nBaseado na entrada do usuário:\n- Para registro de alimentos: Carregar componente de alimentos\n- Para registro de água: Carregar componente de água\n- Para cálculos nutricionais: Carregar componente de cálculos\n- Para formatação de saída: Sempre carregar componente de formatação\n\nLembre-se que a abordagem híbrida visa eficiência - só carregue os componentes necessários para cada interação específica.\n\n### Notas Importantes\n- NUNCA mostre mensagens de erro técnicas ou dados JSON para o usuário\n- Após registrar refeições ou água, SEMPRE lembre o usuário que para editar itens, ele deve acessar https://dietafacil.app.br/today\n- Trate o usuário com cordialidade e mantenha o tom amigável e motivador"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.8,
+      "position": [
+        4660,
+        540
+      ],
+      "id": "20753706-798f-446d-b4dd-d16dcc38dce0",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        4540,
+        740
+      ],
+      "id": "d4307250-7378-4bfa-ad0e-78e742fc46df",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "hDbVS33gRemwNAep",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Webhook').item.json.body.data.key.remoteJid }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        4580,
+        940
+      ],
+      "id": "ec4e25eb-06f3-46fe-a69f-50432d452f49",
+      "name": "Postgres Chat Memory",
+      "credentials": {
+        "postgres": {
+          "id": "m8W5D6Ml6jkdbYon",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "tableId": "diary_days",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "c0e442c8-953d-4b68-af20-0f683e8f59b8"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "63b6ad47-de59-4db2-862d-7720070c5be6",
+      "name": "Delete DiaryDay",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "users",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "whatsapp",
+              "keyValue": "={{ $('Webhook').item.json.body.data.key.remoteJid.split('@')[0] }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3200,
+        560
+      ],
+      "id": "1897800d-6326-4094-877b-9344a2e9d6a7",
+      "name": "load_user",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "diary_days",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            },
+            {
+              "keyName": "date",
+              "condition": "eq",
+              "keyValue": "={{ $now.setZone('America/Buenos_Aires').toFormat('yyyy-MM-dd') }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3520,
+        560
+      ],
+      "id": "d1c797d0-9002-4676-9fe3-13851a8bbbbc",
+      "name": "load_diary_days",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a95e3eab-e77f-4f03-9200-f9f7752cbd8b",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3920,
+        560
+      ],
+      "id": "ba0e67d9-97e1-40fa-8abc-1caf7ad4f722",
+      "name": "if exist diary_days"
+    },
+    {
+      "parameters": {
+        "tableId": "diary_days",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $('load_user').item.json.id }}"
+            },
+            {
+              "fieldId": "date",
+              "fieldValue": "={{ $now.setZone('America/Buenos_Aires').toFormat('yyyy-MM-dd') }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        4140,
+        720
+      ],
+      "id": "9c30dbab-9364-4b06-83dc-99bab1a7c101",
+      "name": "Create DiaryDay",
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "06bf0437-f0b5-48be-aca7-32d6552fb54b",
+              "name": "context.diary_day_id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "820e7a10-a4a9-4680-8209-eb57ad04bc05",
+              "name": "context.user_id",
+              "value": "={{ $('load_user').item.json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "1097eb37-86a6-43d8-bb83-7c69f80e9a6e",
+              "name": "context.message",
+              "value": "={{ $('Redis2').item.json.listaMensagens }}",
+              "type": "string"
+            },
+            {
+              "id": "0b4fc85b-6c35-4748-868d-9ae5c0f3e724",
+              "name": "context.telefone",
+              "value": "={{ $('Variáveis').item.json.telefone.split('@')[0] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4340,
+        540
+      ],
+      "id": "6ccc6126-783b-4906-a852-0d15978c6d11",
+      "name": "Globals"
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "={{ $('Variáveis').item.json.telefone }}",
+        "messageData": "={{ $('Variáveis').item.json.mensagem }}",
+        "tail": true
+      },
+      "id": "987b614b-5487-4309-8887-660ca711edeb",
+      "name": "Redis",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        360
+      ],
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "id": "d0455acb-fe4d-42f0-a8af-c9f065e3d207",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2000,
+        660
+      ],
+      "webhookId": "b1a04310-48c9-466b-96d3-a76e9b024950"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "key": "={{ $('Variáveis').item.json.telefone }}",
+        "options": {}
+      },
+      "id": "f91ddd72-c441-4ec1-ae2e-5cc415e2349a",
+      "name": "Redis1",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2300,
+        660
+      ],
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "effdbb03-e8ed-4bda-807e-adcc889cfe4d",
+      "name": "No Operation, do nothing",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1920,
+        1740
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "37f63b88-4a52-4421-aa95-db9114e521bc",
+              "name": "listaMensagens",
+              "value": "={{ $json.propertyName.join(', ') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ef1320a2-0c7c-4f4b-9689-2f28e26d9d1e",
+      "name": "Edit Fields1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2600,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "={{ $('Variáveis').item.json.telefone }}"
+      },
+      "id": "cc9ed147-87d3-43cc-a74c-f2c6f44ccb98",
+      "name": "Redis2",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2980,
+        560
+      ],
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "data",
+        "binaryPropertyName": "=data",
+        "options": {
+          "fileName": "file.ogg",
+          "mimeType": "application/ogg"
+        }
+      },
+      "id": "ce2138cf-decb-4b6f-9ed1-48fbd159e567",
+      "name": "Convert to File",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        760,
+        660
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3c5ccbc9-69d1-4b13-a7c3-e6945bc8c655",
+              "name": "data",
+              "value": "={{ $('Webhook').item.json.body.data.message.base64 }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f93bd5e0-36c9-45d3-9f3f-5b4b61e4b1ce",
+      "name": "Edit Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        580,
+        660
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "data",
+        "options": {
+          "fileName": "file.png",
+          "mimeType": "image/png"
+        }
+      },
+      "id": "1c4b52b4-4fd6-435b-83ae-d9f764a3fbc8",
+      "name": "Convert to File1",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        820,
+        840
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3c5ccbc9-69d1-4b13-a7c3-e6945bc8c655",
+              "name": "data",
+              "value": "={{ $('Webhook').item.json.body.data.message.base64 }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "16e09d28-fc99-489b-a2ce-95982cfd36e3",
+      "name": "Edit Fields3",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        640,
+        840
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "ade56c50-1520-4760-8df5-e99617d6d3ad",
+              "leftValue": "={{ $('Webhook').item.json[\"body\"][\"data\"][\"message\"][\"imageMessage\"][\"caption\"] }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5d73f844-ac33-427e-b898-8db986023c2b",
+      "name": "If3",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        840
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "={{ $('Variáveis').item.json.telefone }}",
+        "messageData": "={{ $json.text }}",
+        "tail": true
+      },
+      "id": "f8c4f081-f83f-4b6d-910b-bcd55dcf3edb",
+      "name": "Redis3",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        540
+      ],
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "={{ $('Variáveis').item.json.telefone }}",
+        "messageData": "={{ $('Webhook').item.json[\"body\"][\"data\"][\"message\"][\"imageMessage\"][\"caption\"] }}, {{ $json.content.replace(/\\n/g, \"\\\\n\").replace(/['\"]/g, '').trim()  }}",
+        "tail": true
+      },
+      "id": "91fa832f-7c17-40d1-b3ab-ddace56af1c1",
+      "name": "Redis4",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        920
+      ],
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "={{ $('Variáveis').item.json.telefone }}",
+        "messageData": "={{ $json.content.replace(/\\n/g, \"\").trim()  }}",
+        "tail": true
+      },
+      "id": "bdadd32e-3231-4c0f-b6f1-20d6e4983cba",
+      "name": "Redis5",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        720
+      ],
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "50cebc66-2dbc-4c7a-a09e-83ffb0f52991",
+              "name": "mensagem",
+              "value": "={{ $('Variáveis').item.json.mensagem }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b9cd56d3-049a-4bb8-b1fb-540c86013eb9",
+      "name": "Edit Fields4",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        820,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {}
+      },
+      "id": "a7938886-bafe-4d21-b645-c498561f2947",
+      "name": "OpenAI",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.6,
+      "position": [
+        960,
+        660
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "hDbVS33gRemwNAep",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "text": "=Você é um assistente especializado em analisar fotografias de refeições. Sua função é identificar precisamente os alimentos presentes na imagem, estimar suas quantidades aproximadas em medidas padrão e gerar uma descrição textual clara que possa ser usada pelo sistema Dieta Fácil para registro nutricional.\n\n## Habilidades Principais\n1. Identificação precisa de alimentos em fotografias\n2. Estimativa de porções e quantidades com base em referências visuais\n3. Reconhecimento de métodos de preparo\n4. Conversão de informações visuais em descrições textuais padronizadas\n5. Adaptação a diversos contextos culturais e tipos de culinária\n\n## Processo de Análise de Imagens\nPara cada foto de refeição recebida, siga este fluxo de análise:\n\n### 1. Identificação de Alimentos\n- Identifique todos os alimentos e bebidas visíveis na imagem\n- Reconheça preparações específicas (ex: arroz cozido, frango grelhado)\n- Identifique acompanhamentos e molhos\n- Observe detalhes como: tipo de carne, variedade de vegetais, tipo de grãos\n\n### 2. Estimativa de Porções\n- Utilize referências visuais para estimar quantidades:\n  - Compare com o tamanho do prato/utensílios visíveis\n  - Use \"punho\" como referência para ~1 xícara\n  - Use \"palma da mão\" como referência para ~100g de proteína\n  - Use \"polegar\" como referência para ~1 colher de sopa\n- Converta para medidas padrão:\n  - Gramas para alimentos sólidos (carnes, grãos, etc.)\n  - Mililitros para líquidos\n  - Unidades para itens contáveis (ovos, frutas, etc.)\n  - Colheres/xícaras para medidas caseiras\n\n### 3. Formato da Resposta\nSua resposta deve seguir EXATAMENTE este formato:\n\n\nHoje eu comi [lista simplificada de alimentos com quantidades].\n\n\n## Exemplos de Respostas\n\n### Exemplo 1:\nSe houve esses alimentos Identificados:\n- 150g Arroz branco cozido\n- 100g Feijão preto cozido\n- 120g Carne bovina grelhada (aparentemente contrafilé)\n- 30g Salada de alface\n- 20g Tomate em rodelas\n\nA resposta deve ser\n\nHoje eu comi 150g de arroz branco com 100g de feijão preto, 120g de carne grelhada, 30g de alface e 20g de tomate.\n\n\n\n### Exemplo 2:\n\nSe houve esses alimentos Identificados:\n- 80g Macarrão espaguete\n- 100g Molho de tomate\n- 50g Almôndegas (aproximadamente 3 unidades)\n- 10g Queijo parmesão ralado\n- 5g Salsinha picada\n\nA resposta deve ser\n```\nHoje eu comi 80g de macarrão com 100g de molho de tomate, 3 almôndegas (50g), 10g de queijo parmesão ralado e salsinha.\n```\n\n\n## Diretrizes para Estimativas\n\n### Proteínas\n- Carne bovina/suína/frango (filé): ~100-150g por porção padrão\n- Peixe: ~100-150g por filé\n- Ovos: ~50g por unidade\n- Feijão/lentilha cozidos: ~80-100g por concha média\n\n### Carboidratos\n- Arroz cozido: ~150g por escumadeira média\n- Macarrão cozido: ~80-100g por pegador\n- Pão: ~50g por fatia média\n- Batata/mandioca: ~100g por unidade média\n\n### Vegetais e Frutas\n- Folhas verdes: ~30g por punhado\n- Legumes cozidos: ~80g por porção média\n- Fruta inteira média: ~100-150g\n\n### Gorduras\n- Azeite/óleo: ~10g por colher de sopa\n- Manteiga: ~5g por colher de chá\n- Abacate: ~50g por 1/4 de unidade\n\n## Regras Importantes\n1. SEMPRE forneça estimativas, mesmo quando difícil determinar com precisão\n2. SEMPRE mencione o método de preparo quando visível (cozido, frito, assado, grelhado)\n3. NUNCA invente alimentos que não estão visíveis na imagem\n4. NUNCA faça julgamentos sobre a qualidade nutricional da refeição\n5. SEMPRE responda em português do Brasil\n6. SEMPRE inclua a \"Descrição para Registro\" em formato simples e conversacional\n7. SEMPRE priorize estimativas em gramas para facilitar o registro no aplicativo\n\n## Limitações\n- Reconhecer que algumas preparações podem conter ingredientes não visíveis\n- Indicar quando houver dúvidas significativas sobre algum alimento\n- Deixar claro quando a foto não permitir estimativas precisas\n\n## Objetivo Final\nSeu objetivo é fornecer uma descrição textual clara e precisa que o usuário possa copiar facilmente para registrar no aplicativo Dieta Fácil, facilitando o monitoramento de sua alimentação diária e a análise de macronutrientes.",
+        "inputType": "base64",
+        "options": {}
+      },
+      "id": "6ae58597-dba9-4b71-9db0-02f73e52ba35",
+      "name": "OpenAI1",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.6,
+      "position": [
+        1000,
+        840
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "hDbVS33gRemwNAep",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "52aaf749-fe4f-44e4-880e-15b2bfc027f1",
+                    "leftValue": "={{ $('Webhook').item.json[\"body\"][\"data\"][\"messageType\"] }}",
+                    "rightValue": "extendedTextMessage",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "text"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "e514e613-fd6a-48bd-b0ae-bae2448c810e",
+                    "leftValue": "={{ $('Webhook').item.json[\"body\"][\"data\"][\"messageType\"] }}",
+                    "rightValue": "conversation",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "text"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Webhook').item.json[\"body\"][\"data\"][\"messageType\"] }}",
+                    "rightValue": "audioMessage",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "audio"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "c0e434dd-1268-421d-b81b-3a5e90ed9550",
+                    "leftValue": "={{ $('Webhook').item.json[\"body\"][\"data\"][\"messageType\"] }}",
+                    "rightValue": "imageMessage",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "image"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "acf58cc0-a7b3-431e-be3c-28564215f74e",
+      "name": "Switch1",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        300,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8d88c137-383f-4307-b3cc-1f6a560ea67b",
+              "name": "telefone",
+              "value": "={{ $('Webhook').item.json.body.data.key.remoteJid }}",
+              "type": "string"
+            },
+            {
+              "id": "7e2f520e-4952-425b-82ca-792cc46680d4",
+              "name": "mensagem",
+              "value": "={{ $('Webhook').item.json.body.data.message.conversation }}{{ $('Webhook').item.json.body.data.message.extendedTextMessage.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "005b89b2-9a2a-4241-b3c6-0f3e8e84ae89",
+      "name": "Variáveis",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -820,
+        660
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "key": "=558599028259@s.whatsapp.net",
+        "options": {}
+      },
+      "id": "1b9a447f-f73a-43ef-9df7-c58a46feb8a5",
+      "name": "BuscarTeste",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        2020
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "=558599028259@s.whatsapp.net"
+      },
+      "id": "1cf48db2-a78e-4695-af55-1b98f9ab7d07",
+      "name": "RemoverTeste",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1060,
+        1600
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Retorna um sumario das refeicões diárias",
+        "operation": "executeQuery",
+        "query": "select * from daily_summary ds inner join users u ON u.id = ds.user_id where u.whatsapp = $1 and ds.date = now()::date",
+        "options": {
+          "queryReplacement": "={{ $('Variáveis').item.json.telefone.split('@')[0] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.5,
+      "position": [
+        3920,
+        1300
+      ],
+      "id": "a347c8d3-0365-47c2-9835-6fefbf850fbc",
+      "name": "daily_summary",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+      "typeVersion": 1,
+      "position": [
+        4180,
+        1120
+      ],
+      "id": "8dfb1a95-b2b3-4b66-a749-53d7b5e54e64",
+      "name": "DeepSeek Chat Model",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "Dieta Fácil Homologacao",
+        "remoteJid": "={{ $('Variáveis').item.json.telefone.split('@')[0] }}",
+        "messageText": "={{ $json.output }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        5260,
+        400
+      ],
+      "id": "f06732d5-2102-404a-959d-5e92ff394291",
+      "name": "Resposta",
+      "credentials": {
+        "evolutionApi": {
+          "id": "8Vyn5rMuwjwiaAUs",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -540,
+        660
+      ],
+      "id": "05db21a7-901a-4611-ab0e-20717ed622db",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "Dieta Fácil Homologacao",
+        "remoteJid": "={{ $('Variáveis').item.json.telefone.split('@')[0] }}",
+        "messageText": "Estou analisando sua solicitação, por favor aguarde um momento... 🔄",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        -300,
+        780
+      ],
+      "id": "5af2c77b-873c-406a-9a84-5ba871207d45",
+      "name": "Resposta. Rapida",
+      "credentials": {
+        "evolutionApi": {
+          "id": "8Vyn5rMuwjwiaAUs",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -60,
+        780
+      ],
+      "id": "ceb77520-78b7-4499-9147-bc0f6c956df0",
+      "name": "Wait1",
+      "webhookId": "0e8435b8-be8c-4a2a-9cff-ccc7f9c56b15"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "cH9R0hOAZiaSxunU",
+          "mode": "list",
+          "cachedResultName": "DietaFacil Usuario"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "numero_telefone": "={{ $('Globals').item.json.context.telefone }}"
+          },
+          "matchingColumns": [
+            "numero_telefone"
+          ],
+          "schema": [
+            {
+              "id": "numero_telefone",
+              "displayName": "numero_telefone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        5220,
+        820
+      ],
+      "id": "37ee3bd3-04d3-4779-9562-ca55f14fa10d",
+      "name": "busca_usuario"
+    },
+    {
+      "parameters": {
+        "description": "Registro de alimentos",
+        "workflowId": {
+          "__rl": true,
+          "value": "HaIkUfUznNeqm3yd",
+          "mode": "list",
+          "cachedResultName": "DietaFacil Registro Alimento"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "numero_telefone": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('numero_telefone', ``, 'string') }}",
+            "diary_day_id": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('diary_day_id', ``, 'string') }}",
+            "message": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('message', `mensagem do usuario sem formatacoes, espaços e quebras de linha`, 'string') }}"
+          },
+          "matchingColumns": [
+            "numero_telefone"
+          ],
+          "schema": [
+            {
+              "id": "numero_telefone",
+              "displayName": "numero_telefone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "diary_day_id",
+              "displayName": "diary_day_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        5100,
+        820
+      ],
+      "id": "a9a0ef2f-5fc6-4a06-9a18-da9b4049eb33",
+      "name": "Registro de alimentos"
+    },
+    {
+      "parameters": {
+        "description": "Registro de agua",
+        "workflowId": {
+          "__rl": true,
+          "value": "WdLwwMPMUXLkIggl",
+          "mode": "list",
+          "cachedResultName": "DietaFacil Registro Agua"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "numero_telefone": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('numero_telefone', ``, 'string') }}",
+            "message": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('message', ``, 'string') }}",
+            "diary_day_id": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('diary_day_id', ``, 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "numero_telefone",
+              "displayName": "numero_telefone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "diary_day_id",
+              "displayName": "diary_day_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        4960,
+        820
+      ],
+      "id": "e4e9a582-8097-40c9-8c36-c4670b7a6f00",
+      "name": "Registro de agua"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "f74cb418-999b-4ba8-9268-fc92c999b3e5",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1140,
+        660
+      ],
+      "id": "24914c48-e3dd-44c2-aac8-91c56d530afd",
+      "name": "Webhook",
+      "webhookId": "f74cb418-999b-4ba8-9268-fc92c999b3e5"
+    }
+  ],
+  "connections": {
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "load_user": {
+      "main": [
+        [
+          {
+            "node": "load_diary_days",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "load_diary_days": {
+      "main": [
+        [
+          {
+            "node": "if exist diary_days",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if exist diary_days": {
+      "main": [
+        [
+          {
+            "node": "Globals",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create DiaryDay",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create DiaryDay": {
+      "main": [
+        [
+          {
+            "node": "Globals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Globals": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Redis1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Redis2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File1": {
+      "main": [
+        [
+          {
+            "node": "OpenAI1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields3": {
+      "main": [
+        [
+          {
+            "node": "Convert to File1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If3": {
+      "main": [
+        [
+          {
+            "node": "Redis5",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Redis4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis3": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis4": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis5": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields4": {
+      "main": [
+        [
+          {
+            "node": "Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Redis3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI1": {
+      "main": [
+        [
+          {
+            "node": "If3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis2": {
+      "main": [
+        [
+          {
+            "node": "load_user",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Variáveis": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resposta. Rapida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resposta. Rapida": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "busca_usuario": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registro de alimentos": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registro de agua": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Variáveis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "primary-production-0299.up.railway.app",
+            "user-agent": "axios/1.8.4",
+            "content-length": "1079",
+            "accept-encoding": "gzip, compress, deflate, br",
+            "content-type": "application/json",
+            "x-forwarded-for": "162.220.232.85",
+            "x-forwarded-host": "primary-production-0299.up.railway.app",
+            "x-forwarded-proto": "https",
+            "x-railway-edge": "railway/us-west1",
+            "x-railway-request-id": "sbov8Ir9RL2JrTNS-053Mw_3485859946",
+            "x-real-ip": "162.220.232.85",
+            "x-request-start": "1745437016656"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "event": "messages.upsert",
+            "instance": "Dieta Fácil Homologacao",
+            "data": {
+              "key": {
+                "remoteJid": "558599028259@s.whatsapp.net",
+                "fromMe": false,
+                "id": "DAE2D6BB3D7526ED9A804E1567390B05"
+              },
+              "pushName": "Vitorio",
+              "status": "DELIVERY_ACK",
+              "message": {
+                "messageContextInfo": {
+                  "deviceListMetadata": {
+                    "senderKeyHash": "7DO8PLWc8y64bg==",
+                    "senderTimestamp": "1745107416",
+                    "recipientKeyHash": "gIu00NGxePO/aA==",
+                    "recipientTimestamp": "1744914782"
+                  },
+                  "deviceListMetadataVersion": 2,
+                  "messageSecret": "y+JkB0qmBIFGqSi2FL/LzT2y5BBwL22LFBR7gUiEU70="
+                },
+                "conversation": "Lanchei \n\n1 fatia de queijo de bufada \n1 fayia de peito de peru\n200ml de suco de abacaxi"
+              },
+              "contextInfo": {
+                "forwardingScore": 1,
+                "isForwarded": true
+              },
+              "messageType": "conversation",
+              "messageTimestamp": 1745437016,
+              "instanceId": "06216ed6-03a4-47c3-a693-7ec90c5b59ef",
+              "source": "android"
+            },
+            "destination": "https://primary-production-0299.up.railway.app/webhook/dieta",
+            "date_time": "2025-04-23T16:36:56.510Z",
+            "sender": "5511912477879@s.whatsapp.net",
+            "server_url": "https://evolution-api-production-61b7.up.railway.app",
+            "apikey": "2BCE7551B524-4BDA-B592-7BA252AEA1F3"
+          },
+          "webhookUrl": "https://primary-production-0299.up.railway.app/webhook/dieta",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "versionId": "67aa62f3-77a8-4c34-96c4-7e87d2a13d06",
+  "triggerCount": 0,
+  "tags": [
+    {
+      "createdAt": "2025-05-14T21:16:03.990Z",
+      "updatedAt": "2025-05-14T21:16:03.990Z",
+      "id": "V2BRwlJlIUVtAHi7",
+      "name": "dietaFacilRefatorado"
+    }
+  ]
+}
