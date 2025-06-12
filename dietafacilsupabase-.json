@@ -1,0 +1,1599 @@
+{
+  "createdAt": "2025-05-13T01:32:14.178Z",
+  "updatedAt": "2025-06-05T21:59:40.241Z",
+  "id": "uVhVIDv9cddOUjoP",
+  "name": "DietaFacilSupabase",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.context.message }}",
+        "options": {
+          "systemMessage": "=Você é o Dieta Fácil, um assistente especializado em nutrição e bem-estar, desenvolvido para ajudar usuários a monitorar sua alimentação diária, calcular macronutrientes e acompanhar a ingestão de água. Você deve responder em um formato visual específico que facilite a leitura e compreensão dos dados nutricionais.\n\n###Contexto\nHoje é {{ $now.setZone('America/Buenos_Aires').toFormat('yyyy-MM-dd') }}\n{{ $json.context }}\n\n## Principais Responsabilidades\n0. Direcionar o usuário fazer o questionário de anamnese caso ele não seja encontrado na base de dados.\n1. Analisar alimentos consumidos pelo usuário e calcular os macronutrientes (proteínas, carboidratos, gorduras e fibras)\n2. Salvar os dados identificados no banco de dados\n3. Rastrear e incentivar o consumo adequado de água\n4. Fornecer feedback no formato visual padronizado seguindo a ORDEM EXATA das refeições\n5. Calcular déficit ou superávit calórico baseado na taxa metabólica basal\n6. SEMPRE consultar e usar os dados salvos no banco de dados, NUNCA use o histórico da conversa para sumarizar refeições\n7. Lembrar o usuário que para editar qualquer item, ele deve acessar https://dietafacil.app.br/today\n8. NUNCA mostrar mensagens de erro técnicas ou dados JSON para o usuário\n\n## Conhecimentos e Habilidades\n- Capacidade de consultar usuários no banco de dados\n- Capacidade de registrar consumo de água\n- Capacidade de registrar alimentos consumidos\n- Capacidade de consultar refeições do dia atual\n- Extensa base de dados nutricional de alimentos comuns\n- Capacidade de calcular e totalizar macronutrientes por refeição e por dia\n- Compreensão das necessidades hídricas individuais baseadas em peso\n- Cálculo preciso de metas nutricionais personalizadas\n- Apresentação visual de dados nutricionais\n\n## Ferramentas disponíveis\n- busca_usuario: Para buscar informações do usuário pelo número de telefone\n- add_agua: Para registrar consumo de água (usar apenas o valor numérico em ml)\n- Insere_Refeicao_tool: Para salvar refeições e alimentos identificados\n- busca_refeicoes_dia: Para consultar as refeições do dia atual\n\n## Tratamento de Erros\nSe ocorrer qualquer erro ao tentar recuperar dados (como refeições do dia atual), NUNCA mostre mensagens de erro técnicas para o usuário. Em vez disso:\n\n1. Continue normalmente com o processamento da solicitação atual do usuário\n2. Não mencione o erro técnico ao usuário\n3. Se for impossível mostrar dados anteriores, apenas processe os novos dados fornecidos\n4. NUNCA mostre JSON, códigos de erro ou mensagens técnicas para o usuário\n5. Se necessário, informe de maneira amigável que você está focando nos novos dados fornecidos\n\n## Processo para Consulta e Sumarização de Refeições\n1. SEMPRE use a ferramenta 'busca_refeicoes_dia' para obter APENAS as refeições do dia atual\n2. NUNCA misture refeições de dias diferentes\n3. Ao sumarizar, use SOMENTE os dados retornados pela ferramenta 'busca_refeicoes_dia'\n4. Ignore completamente qualquer menção a refeições no histórico da conversa\n5. Se o usuário perguntar sobre refeições anteriores, informe que você só tem acesso às refeições do dia atual\n6. Se houver erro ao recuperar refeições, continue processando normalmente sem mencionar o erro\n\n## Adicionar Consumo de Água\nPara adicionar água, use a ferramenta 'add_agua' passando apenas o valor numérico em ml.\nExemplo: Se o usuário disser \"Bebi 500ml de água\", use a ferramenta com o valor 500.\n\n## Ordem das Refeições e Formato de Resposta\nVocê DEVE listar as refeições SEMPRE nesta ordem específica mesmo não sido informado(Coloque: Não informado):\n1. Café da manhã (🍳)\n2. Almoço (🍛 ou 🍽)\n3. Jantar (🍽 ou 🍛)\n4. Lanches (🥪), se houver\n\nSEMPRE mostrar o resumo total quando listar alguma refeição.\n\nCaso o numero do usuário não esteja cadastrado na base responder educadamente de que é necessário a anamnese nesse link:\nhttps://dietafacil.app.br\n\nPara cada refeição registrada pelo usuário, você DEVE seguir EXATAMENTE este formato:\n\n```\n🍳 Café da manhã:\n[Quantidade] [Alimento] [Emoji apropriado] ou Não Informado\n[Quantidade] [Alimento] [Emoji apropriado]\n([X] g proteína [Y] g carboidrato [Z] g gordura [W] g fibras [Total] kcal)\n\n🍛 Almoço:\n[Quantidade] [Alimento] [Emoji apropriado]\n[Quantidade] [Alimento] [Emoji apropriado]\n([X] g proteína [Y] g carboidrato [Z] g gordura [W] g fibras [Total] kcal)\n\n🍽 Jantar:\n[Quantidade] [Alimento] [Emoji apropriado]\n[Quantidade] [Alimento] [Emoji apropriado]\n([X] g proteína [Y] g carboidrato [Z] g gordura [W] g fibras [Total] kcal)\n```\n\nPara o resumo diário, você DEVE seguir EXATAMENTE este formato ao final da resposta:\n\n```\n🎯 Total hoje:\n🍗 Proteínas: [X] g ([Meta ou diferença] g)\n🍞 Carboidratos: [Y] g ([Meta ou diferença] g)\n🥓 Gorduras: [Z] g ([Meta ou diferença] g)\n🥗 Fibras: [W] g ([Meta ou diferença] g)\n💧 Água: [Volume] ml ([Meta ou diferença] ml)\n🍽️ Ingeridas: [Calorias] kcal ([Déficit/Superávit] kcal)\n\nDéficit:\n[Calorias Ingeridas] - [Taxa Metabólica Basal] = [Diferença] kcal\nCalorias Ingeridas - Taxa Metabólica Basal\n```\n\n## Entrada de Dados do Usuário\nVocê coletará as seguintes informações:\n\n1. **Registro alimentar**:\n   - Descrição detalhada dos alimentos consumidos por refeição\n   - Quantidade aproximada (em medidas caseiras ou gramas)\n   - Tipo de refeição (café da manhã, almoço, jantar, lanche)\n\n2. **Consumo de água**:\n   - Quantidade de água ingerida (em copos, ml ou L)\n\n## Cálculo de Metas Nutricionais\n- Proteínas: 1,8-2,0g por kg de peso corporal\n- Carboidratos: baseado no objetivo (menor para perda de peso, maior para ganho muscular)\n- Gorduras: 0,8-1,0g por kg de peso corporal\n- Fibras: 25-35g diários\n- Água: 35-45ml por kg de peso corporal\n- Taxa Metabólica Basal (TMB): calculada pela fórmula de Harris-Benedict\n\n## Emojis para Uso nas Respostas\n- Refeições: 🍳 (café da manhã) 🍛/🍽 (almoço/jantar) 🥪 (lanche)\n- Alimentos específicos: 🍚 🍗 🥩 🍠 🥤 🍔 🍞 🧀 🥬 🍅 🥑 🍌 🥛 🥜 🌭 🍟\n- Macronutrientes: 🍗 (proteínas) 🍞 (carboidratos) 🥓 (gorduras) 🥗 (fibras)\n- Água: 💧\n- Resumo/Meta: 🎯\n- Calorias: 🍽️\n\n## Exemplo para usar o tool 'Insere_Refeicao_tool' depois dos alimentos identificados\n\nSe receber algo assim: Comi 2 ovos cozidos com uma fatia de pão integral e uma xícara de café preto.\nIdentifique o tipo de refeições assim: 1=Café da manhã, 2=Almoço, 3=Jantar, 4=Lanche para preencher 'tipo_refeicao_id'\n\nATENÇÃO: O formato JSON para a ferramenta 'Insere_Refeicao_tool' é EXTREMAMENTE importante. Siga EXATAMENTE este formato:\n\n1. 'alimentos' DEVE ser um ARRAY de OBJETOS, não uma string\n2. Cada alimento é um objeto separado dentro do array\n3. Todos os campos numéricos (protein, carbs, fat, fiber, calories) devem ser strings\n4. Sempre inclua o diary_day_id do contexto\n5. O tipo_refeicao_id deve ser um número (não string) e DEVE ser escolhido com base no horário identificado:\n   - 1 = Café da manhã (geralmente antes das 11h)\n   - 2 = Almoço (geralmente entre 11h e 15h)\n   - 3 = Jantar (geralmente após as 18h)\n   - 4 = Lanche (qualquer refeição menor entre as principais)\n\nFORMATO CORRETO:\n```\n[\n  {\n    \"alimentos\": [\n      {\n        \"name\": \"Ovos cozidos\",\n        \"quantity\": \"2 unidades\",\n        \"emoji\": \"🥚\",\n        \"protein\": \"10\",\n        \"carbs\": \"0\",\n        \"fat\": \"1\",\n        \"fiber\": \"0\",\n        \"calories\": \"70\"\n      },\n      {\n        \"name\": \"Fatia de pão integral 100%\",\n        \"quantity\": \"1 fatia\",\n        \"emoji\": \"🍞\",\n        \"protein\": \"3\",\n        \"carbs\": \"10\",\n        \"fat\": \"1\",\n        \"fiber\": \"1\",\n        \"calories\": \"100\"\n      },\n      {\n        \"name\": \"café preto\",\n        \"quantity\": \"1 xícara\",\n        \"emoji\": \"☕️\",\n        \"protein\": \"0\",\n        \"carbs\": \"10\",\n        \"fat\": \"1\",\n        \"fiber\": \"1\",\n        \"calories\": \"100\"\n      }\n    ],\n    \"diary_day_id\": \"{{ $json.context.diary_day_id }}\", \n    \"tipo_refeicao_id\": 1  // Escolha o tipo correto baseado no horário: 1=Café da manhã, 2=Almoço, 3=Jantar, 4=Lanche\n  }\n]\n```\n\nFORMATOS INCORRETOS QUE VOCÊ DEVE EVITAR:\n```\n// ERRADO: alimentos como string\n[\n  {\n    \"alimentos\": \"{\"name\":\"Pão integral\",\"quantity\":\"1 fatia\",\"emoji\":\"🍞\",\"protein\":\"4\",\"carbs\":\"21\",\"fat\":\"1\",\"fiber\":\"3\",\"calories\":\"110\"}\",\n    \"tipo_refeicao_id\": 1\n  }\n]\n\n// ERRADO: formato aninhado incorreto\n[\n  {\n    \"query\": {\n      \"alimentos\": \"{\"name\":\"Pão integral\",\"quantity\":\"1 fatia\",\"emoji\":\"🍞\",\"protein\":\"4\",\"carbs\":\"21\",\"fat\":\"1\",\"fiber\":\"3\",\"calories\":\"110\"}\",\n      \"tipo_refeicao_id\": 1\n    }\n  }\n]\n\n// ERRADO: campos numéricos como números em vez de strings\n[\n  {\n    \"alimentos\": [\n      {\n        \"name\": \"Ovos cozidos\",\n        \"quantity\": \"2 unidades\",\n        \"emoji\": \"🥚\",\n        \"protein\": 10,\n        \"carbs\": 0,\n        \"fat\": 1,\n        \"fiber\": 0,\n        \"calories\": 70\n      }\n    ],\n    \"diary_day_id\": \"{{ $json.context.diary_day_id }}\",\n    \"tipo_refeicao_id\": 1\n  }\n]\n```\n\n## Exemplo de Resposta Completa\n\nQuando o usuário enviar múltiplas refeições do dia, você DEVE organizá-las na ordem correta (café da manhã, almoço, jantar, lanches) e finalizar com o resumo total, EXATAMENTE como no exemplo abaixo:\n\n```\n🍳 Café da manhã:\n100g Bife de patinho 🥩\n(32 g proteína 0 g carboidrato 13 g gordura 250 kcal)\n\n🍛 Almoço:\n200g Filé mignon ao molho 🥩\n150g Arroz branco cozido 🍚\n100g Batata frita 🍟\n300ml Suco de caju 🥤\n(50 g proteína 127 g carboidrato 40 g gordura 4 g fibras 1062 kcal)\n\n🍽 Jantar:\n1 Enroladinho de salsicha 🌭\n200ml Nescau 🥤\n(10 g proteína 40 g carboidrato 10 g gordura 1 g fibras 293 kcal)\n\n🎯 Total hoje:\n🍗 Proteínas: 92 g (98 g)\n🍞 Carboidratos: 167 g (67 g)\n🥓 Gorduras: 63 g (13 g)\n🥗 Fibras: 5 g (34 g)\n💧 Água: 0 ml (3325 ml)\n🍽️ Ingeridas: 1605 kcal (774 kcal)\n\nDéficit:\n1605 - 1970 = -365 kcal\nCalorias Ingeridas - Taxa Metabólica Basal\n```\n\nApós registrar uma refeição, SEMPRE lembre o usuário que para editar qualquer item, ele deve acessar https://dietafacil.app.br/today\n\n## Recursos e Limitações\n- Cálculos nutricionais são estimativas baseadas em porções médias\n- Fornece informações educativas gerais, não substituindo o aconselhamento profissional\n- Adapta respostas sempre seguindo EXATAMENTE o formato visual padronizado\n- Mantém consistência na apresentação dos dados para facilitar o acompanhamento\n- Só tem acesso às refeições do dia atual, não consegue acessar histórico de dias anteriores\n- Não permite edição direta de itens já registrados - para edições, o usuário deve acessar https://dietafacil.app.br/today\n\n## Importante\n- ANTES DE QUALQUER COISA, SEMPRE busque o contato do usuário com a ferramenta 'busca_usuario'\n- SEMPRE salvar os alimentos identificados com a ferramenta 'Insere_Refeicao_tool', caso não seja possível, avise ao usuário\n- NUNCA altere o formato de resposta especificado\n- SEMPRE mantenha a ordem das refeições (café da manhã, almoço, jantar, lanches)\n- SEMPRE apresente o resumo total ao final, após listar todas as refeições\n- Use os emojis apropriados para cada alimento e categoria\n- Mantenha exatamente o mesmo padrão de formatação, incluindo parênteses e espaços\n- Seja preciso nos cálculos, mas mantenha o formato visual como prioridade absoluta\n- NUNCA use o histórico da conversa para sumarizar refeições, SEMPRE use a ferramenta 'busca_refeicoes_dia'\n- SEMPRE trabalhe APENAS com as refeições do dia atual, nunca misture com dias anteriores\n- SEMPRE lembre o usuário que para editar qualquer item já registrado, ele deve acessar https://dietafacil.app.br/today\n- NUNCA mostre mensagens de erro técnicas, dados JSON ou informações de depuração para o usuário\n- Se ocorrer um erro ao buscar dados, continue o processamento normalmente sem mencionar o erro"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.8,
+      "position": [
+        4660,
+        540
+      ],
+      "id": "110b1f33-519f-4ba1-9d04-1fecc822611e",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        4500,
+        740
+      ],
+      "id": "e0ec1039-ad0a-4f45-91cc-586f96c56964",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "hDbVS33gRemwNAep",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dieta",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1120,
+        660
+      ],
+      "id": "492610d0-baca-4d46-824e-1ee19b0270fb",
+      "name": "Webhook",
+      "webhookId": "538b0938-8172-4d9b-909b-209fae1a4c92"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Webhook').item.json.body.data.key.remoteJid }}",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        4720,
+        800
+      ],
+      "id": "9902bdf5-fda1-406e-8e39-6830fd6ab94a",
+      "name": "Postgres Chat Memory",
+      "credentials": {
+        "postgres": {
+          "id": "m8W5D6Ml6jkdbYon",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "tableId": "diary_days",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "c0e442c8-953d-4b68-af20-0f683e8f59b8"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "e33c682b-03b9-4222-85a6-cf1cc9a01a66",
+      "name": "Delete DiaryDay",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "busca usuario salvo com seus dados de anamnese",
+        "operation": "get",
+        "tableId": "users",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "whatsapp",
+              "keyValue": "={{ $('Webhook').item.json.body.data.key.remoteJid.split('@')[0] }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        5180,
+        1100
+      ],
+      "id": "6c2d75b6-6add-4ef4-b815-26a88ebdff54",
+      "name": "busca_usuario",
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Adiciona o consumo de agua do usuário e o horário estimado",
+        "tableId": "water_logs",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "diary_day_id",
+              "fieldValue": "={{ $('Globals').item.json.context.diary_day_id }}"
+            },
+            {
+              "fieldId": "amount_ml",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Field_Value', ``, 'string') }}"
+            },
+            {
+              "fieldId": "time_consumed",
+              "fieldValue": "={{ $now.setZone('America/Buenos_Aires').toFormat('yyyy-MM-dd HH:mm:ss') }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        5300,
+        1100
+      ],
+      "id": "95e8f40a-fc7e-43c7-ace8-3dd74daaa3de",
+      "name": "add_agua",
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "Insere_Refeicao_tool",
+        "description": "Chame essa tool para inserir refeições",
+        "workflowId": {
+          "__rl": true,
+          "value": "8d9fZQyyj1MRsgZV",
+          "mode": "list",
+          "cachedResultName": "InsereRefeicaoSupabase"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "alimentos": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('alimentos', ``, 'string') }}",
+            "diary_day_id": "={{ $('Globals').item.json.context.diary_day_id }}",
+            "tipo_refeicao_id": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('tipo_refeicao_id', ``, 'number') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "alimentos",
+              "displayName": "alimentos",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array"
+            },
+            {
+              "id": "diary_day_id",
+              "displayName": "diary_day_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "tipo_refeicao_id",
+              "displayName": "tipo_refeicao_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.1,
+      "position": [
+        5420,
+        1100
+      ],
+      "id": "29775512-567e-4c9b-8b90-05a599b70aab",
+      "name": "Insere_Refeicao_tool"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "users",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "whatsapp",
+              "keyValue": "={{ $('Webhook').item.json.body.data.key.remoteJid.split('@')[0] }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3280,
+        560
+      ],
+      "id": "1f8c44be-9656-4155-90a0-80690310f19c",
+      "name": "load_user",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "diary_days",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            },
+            {
+              "keyName": "date",
+              "condition": "eq",
+              "keyValue": "={{ $now.setZone('America/Buenos_Aires').toFormat('yyyy-MM-dd') }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3540,
+        560
+      ],
+      "id": "c0b2ecca-3d3b-4bcf-bfec-cbce30e86b2b",
+      "name": "load_diary_days",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a95e3eab-e77f-4f03-9200-f9f7752cbd8b",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3920,
+        560
+      ],
+      "id": "2ef129f3-e3f9-484b-926b-d65dc3f8a05f",
+      "name": "if exist diary_days"
+    },
+    {
+      "parameters": {
+        "tableId": "diary_days",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $('load_user').item.json.id }}"
+            },
+            {
+              "fieldId": "date",
+              "fieldValue": "={{ $now.setZone('America/Buenos_Aires').toFormat('yyyy-MM-dd') }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        4140,
+        720
+      ],
+      "id": "3372f71d-7e0f-41c3-81a6-074dfba9bb73",
+      "name": "Create DiaryDay",
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "06bf0437-f0b5-48be-aca7-32d6552fb54b",
+              "name": "context.diary_day_id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "820e7a10-a4a9-4680-8209-eb57ad04bc05",
+              "name": "context.user_id",
+              "value": "={{ $('load_user').item.json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "1097eb37-86a6-43d8-bb83-7c69f80e9a6e",
+              "name": "context.message",
+              "value": "={{ $('Redis2').item.json.listaMensagens }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4340,
+        540
+      ],
+      "id": "ad323b70-8712-4f18-bc49-4bcb7efa67b4",
+      "name": "Globals"
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "={{ $('Variáveis').item.json.telefone }}",
+        "messageData": "={{ $('Variáveis').item.json.mensagem }}",
+        "tail": true
+      },
+      "id": "9c2549e6-7373-4afa-a00d-13823375550e",
+      "name": "Redis",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        360
+      ],
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "id": "8aa7be43-dbcb-454c-bd0c-ab2e38bdbfb5",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2000,
+        660
+      ],
+      "webhookId": "ac74242c-b0f2-4bba-bcfe-003c0c7af958"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "key": "={{ $('Variáveis').item.json.telefone }}",
+        "options": {}
+      },
+      "id": "0d6a0796-cc20-46e4-8a90-48f7571b6aab",
+      "name": "Redis1",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2300,
+        660
+      ],
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "3b8725d9-dc68-493d-91f4-5a5e4bd2ec91",
+      "name": "No Operation, do nothing",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1920,
+        1740
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "37f63b88-4a52-4421-aa95-db9114e521bc",
+              "name": "listaMensagens",
+              "value": "={{ $json.propertyName.join(', ') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d6a559b2-e615-45d2-99f6-a8463400a8ab",
+      "name": "Edit Fields1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2600,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "={{ $('Variáveis').item.json.telefone }}"
+      },
+      "id": "41b027bc-7f62-42cd-b0d8-c43461ce6760",
+      "name": "Redis2",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2980,
+        560
+      ],
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "data",
+        "binaryPropertyName": "=data",
+        "options": {
+          "fileName": "file.ogg",
+          "mimeType": "application/ogg"
+        }
+      },
+      "id": "344718e8-fb00-4f02-83bd-39b34801cfc9",
+      "name": "Convert to File",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        760,
+        660
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3c5ccbc9-69d1-4b13-a7c3-e6945bc8c655",
+              "name": "data",
+              "value": "={{ $('Webhook').item.json.body.data.message.base64 }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "57d533ea-4845-4fed-8e71-6aa6be9c5416",
+      "name": "Edit Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        580,
+        660
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "data",
+        "options": {
+          "fileName": "file.png",
+          "mimeType": "image/png"
+        }
+      },
+      "id": "32c74968-a07e-478f-997b-c8d7bae62dfe",
+      "name": "Convert to File1",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        820,
+        840
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3c5ccbc9-69d1-4b13-a7c3-e6945bc8c655",
+              "name": "data",
+              "value": "={{ $('Webhook').item.json.body.data.message.base64 }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "805bfa0c-33ce-48e9-af80-d2a641fb3ce0",
+      "name": "Edit Fields3",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        640,
+        840
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "ade56c50-1520-4760-8df5-e99617d6d3ad",
+              "leftValue": "={{ $('Webhook').item.json[\"body\"][\"data\"][\"message\"][\"imageMessage\"][\"caption\"] }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a3217150-c8ee-4dfb-bb86-a1f08f269da8",
+      "name": "If3",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        840
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "={{ $('Variáveis').item.json.telefone }}",
+        "messageData": "={{ $json.text }}",
+        "tail": true
+      },
+      "id": "3f079186-43bf-40e9-afdd-b54d556f728c",
+      "name": "Redis3",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        540
+      ],
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "={{ $('Variáveis').item.json.telefone }}",
+        "messageData": "={{ $('Webhook').item.json[\"body\"][\"data\"][\"message\"][\"imageMessage\"][\"caption\"] }}, {{ $json.content.replace(/\\n/g, \"\\\\n\").replace(/['\"]/g, '').trim()  }}",
+        "tail": true
+      },
+      "id": "62559bca-f849-439f-be10-830d27575afa",
+      "name": "Redis4",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        920
+      ],
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "={{ $('Variáveis').item.json.telefone }}",
+        "messageData": "={{ $json.content.replace(/\\n/g, \"\").trim()  }}",
+        "tail": true
+      },
+      "id": "ec2f61a0-8f2e-4255-8284-d818aabd8cf3",
+      "name": "Redis5",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        720
+      ],
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "50cebc66-2dbc-4c7a-a09e-83ffb0f52991",
+              "name": "mensagem",
+              "value": "={{ $('Variáveis').item.json.mensagem }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "aae72407-f0cf-40e9-ae9c-e20825323f74",
+      "name": "Edit Fields4",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        820,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {}
+      },
+      "id": "71bca311-0493-4683-b2f5-e2d713e12f4e",
+      "name": "OpenAI",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.6,
+      "position": [
+        960,
+        660
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "hDbVS33gRemwNAep",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "text": "=Você é um assistente especializado em analisar fotografias de refeições. Sua função é identificar precisamente os alimentos presentes na imagem, estimar suas quantidades aproximadas em medidas padrão e gerar uma descrição textual clara que possa ser usada pelo sistema Dieta Fácil para registro nutricional.\n\n## Habilidades Principais\n1. Identificação precisa de alimentos em fotografias\n2. Estimativa de porções e quantidades com base em referências visuais\n3. Reconhecimento de métodos de preparo\n4. Conversão de informações visuais em descrições textuais padronizadas\n5. Adaptação a diversos contextos culturais e tipos de culinária\n\n## Processo de Análise de Imagens\nPara cada foto de refeição recebida, siga este fluxo de análise:\n\n### 1. Identificação de Alimentos\n- Identifique todos os alimentos e bebidas visíveis na imagem\n- Reconheça preparações específicas (ex: arroz cozido, frango grelhado)\n- Identifique acompanhamentos e molhos\n- Observe detalhes como: tipo de carne, variedade de vegetais, tipo de grãos\n\n### 2. Estimativa de Porções\n- Utilize referências visuais para estimar quantidades:\n  - Compare com o tamanho do prato/utensílios visíveis\n  - Use \"punho\" como referência para ~1 xícara\n  - Use \"palma da mão\" como referência para ~100g de proteína\n  - Use \"polegar\" como referência para ~1 colher de sopa\n- Converta para medidas padrão:\n  - Gramas para alimentos sólidos (carnes, grãos, etc.)\n  - Mililitros para líquidos\n  - Unidades para itens contáveis (ovos, frutas, etc.)\n  - Colheres/xícaras para medidas caseiras\n\n### 3. Formato da Resposta\nSua resposta deve seguir EXATAMENTE este formato:\n\n\nHoje eu comi [lista simplificada de alimentos com quantidades].\n\n\n## Exemplos de Respostas\n\n### Exemplo 1:\nSe houve esses alimentos Identificados:\n- 150g Arroz branco cozido\n- 100g Feijão preto cozido\n- 120g Carne bovina grelhada (aparentemente contrafilé)\n- 30g Salada de alface\n- 20g Tomate em rodelas\n\nA resposta deve ser\n\nHoje eu comi 150g de arroz branco com 100g de feijão preto, 120g de carne grelhada, 30g de alface e 20g de tomate.\n\n\n\n### Exemplo 2:\n\nSe houve esses alimentos Identificados:\n- 80g Macarrão espaguete\n- 100g Molho de tomate\n- 50g Almôndegas (aproximadamente 3 unidades)\n- 10g Queijo parmesão ralado\n- 5g Salsinha picada\n\nA resposta deve ser\n```\nHoje eu comi 80g de macarrão com 100g de molho de tomate, 3 almôndegas (50g), 10g de queijo parmesão ralado e salsinha.\n```\n\n\n## Diretrizes para Estimativas\n\n### Proteínas\n- Carne bovina/suína/frango (filé): ~100-150g por porção padrão\n- Peixe: ~100-150g por filé\n- Ovos: ~50g por unidade\n- Feijão/lentilha cozidos: ~80-100g por concha média\n\n### Carboidratos\n- Arroz cozido: ~150g por escumadeira média\n- Macarrão cozido: ~80-100g por pegador\n- Pão: ~50g por fatia média\n- Batata/mandioca: ~100g por unidade média\n\n### Vegetais e Frutas\n- Folhas verdes: ~30g por punhado\n- Legumes cozidos: ~80g por porção média\n- Fruta inteira média: ~100-150g\n\n### Gorduras\n- Azeite/óleo: ~10g por colher de sopa\n- Manteiga: ~5g por colher de chá\n- Abacate: ~50g por 1/4 de unidade\n\n## Regras Importantes\n1. SEMPRE forneça estimativas, mesmo quando difícil determinar com precisão\n2. SEMPRE mencione o método de preparo quando visível (cozido, frito, assado, grelhado)\n3. NUNCA invente alimentos que não estão visíveis na imagem\n4. NUNCA faça julgamentos sobre a qualidade nutricional da refeição\n5. SEMPRE responda em português do Brasil\n6. SEMPRE inclua a \"Descrição para Registro\" em formato simples e conversacional\n7. SEMPRE priorize estimativas em gramas para facilitar o registro no aplicativo\n\n## Limitações\n- Reconhecer que algumas preparações podem conter ingredientes não visíveis\n- Indicar quando houver dúvidas significativas sobre algum alimento\n- Deixar claro quando a foto não permitir estimativas precisas\n\n## Objetivo Final\nSeu objetivo é fornecer uma descrição textual clara e precisa que o usuário possa copiar facilmente para registrar no aplicativo Dieta Fácil, facilitando o monitoramento de sua alimentação diária e a análise de macronutrientes.",
+        "inputType": "base64",
+        "options": {}
+      },
+      "id": "5da9f32f-8e99-4ea7-88e6-177dbc46b28c",
+      "name": "OpenAI1",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.6,
+      "position": [
+        1000,
+        840
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "hDbVS33gRemwNAep",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "52aaf749-fe4f-44e4-880e-15b2bfc027f1",
+                    "leftValue": "={{ $('Webhook').item.json[\"body\"][\"data\"][\"messageType\"] }}",
+                    "rightValue": "extendedTextMessage",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "text"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "e514e613-fd6a-48bd-b0ae-bae2448c810e",
+                    "leftValue": "={{ $('Webhook').item.json[\"body\"][\"data\"][\"messageType\"] }}",
+                    "rightValue": "conversation",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "text"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Webhook').item.json[\"body\"][\"data\"][\"messageType\"] }}",
+                    "rightValue": "audioMessage",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "audio"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "c0e434dd-1268-421d-b81b-3a5e90ed9550",
+                    "leftValue": "={{ $('Webhook').item.json[\"body\"][\"data\"][\"messageType\"] }}",
+                    "rightValue": "imageMessage",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "image"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1f5de06a-2aca-4bcd-95fe-b1f4549a3a63",
+      "name": "Switch1",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        300,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8d88c137-383f-4307-b3cc-1f6a560ea67b",
+              "name": "telefone",
+              "value": "={{ $('Webhook').item.json.body.data.key.remoteJid }}",
+              "type": "string"
+            },
+            {
+              "id": "7e2f520e-4952-425b-82ca-792cc46680d4",
+              "name": "mensagem",
+              "value": "={{ $('Webhook').item.json.body.data.message.conversation }}{{ $('Webhook').item.json.body.data.message.extendedTextMessage.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f70b31fc-17a2-4ad5-88a8-4134475cbb3f",
+      "name": "Variáveis",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -820,
+        660
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "key": "=558599028259@s.whatsapp.net",
+        "options": {}
+      },
+      "id": "1b8fa135-ad3c-499a-94c2-187046f31e34",
+      "name": "BuscarTeste",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        2020
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "=558599028259@s.whatsapp.net"
+      },
+      "id": "17519c7e-44a5-447d-9a23-a4b02d6126f5",
+      "name": "RemoverTeste",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1060,
+        1600
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Retorna um sumario das refeicões diárias",
+        "operation": "executeQuery",
+        "query": "select * from daily_summary ds inner join users u ON u.id = ds.user_id where u.whatsapp = $1 and ds.date = now()::date",
+        "options": {
+          "queryReplacement": "={{ $('Variáveis').item.json.telefone.split('@')[0] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.5,
+      "position": [
+        3920,
+        1300
+      ],
+      "id": "c0d0ac60-5a42-4a1d-a7a3-2b9aa136cfd4",
+      "name": "daily_summary",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+      "typeVersion": 1,
+      "position": [
+        4180,
+        1120
+      ],
+      "id": "b3ac8213-f9c0-48d6-acd9-51cc64e33e6a",
+      "name": "DeepSeek Chat Model",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "daily_summary",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "keyValue": "={{ $('Globals').item.json.context.user_id }}"
+            },
+            {
+              "keyName": "date",
+              "keyValue": "={{ $now.format('yyyy-MM-dd') }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        4940,
+        1080
+      ],
+      "id": "f7933a43-5ddc-471b-b398-39d63520e6a4",
+      "name": "busca_refeicoes_dia",
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "DietaFacil",
+        "remoteJid": "={{ $('Variáveis').item.json.telefone.split('@')[0] }}",
+        "messageText": "={{ $json.output }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        5260,
+        400
+      ],
+      "id": "0824056f-e97f-4a98-b1d1-b12d7311e913",
+      "name": "Resposta",
+      "credentials": {
+        "evolutionApi": {
+          "id": "8Vyn5rMuwjwiaAUs",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -540,
+        660
+      ],
+      "id": "cb29dbce-6b41-46eb-8b42-31ff97f646ab",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "DietaFacil",
+        "remoteJid": "={{ $('Variáveis').item.json.telefone.split('@')[0] }}",
+        "messageText": "Estou analisando sua solicitação, por favor aguarde um momento... 🔄",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        -300,
+        780
+      ],
+      "id": "6fe040ab-d7bd-4ab2-9f5e-a6ccbb2b36d4",
+      "name": "Resposta. Rapida",
+      "credentials": {
+        "evolutionApi": {
+          "id": "8Vyn5rMuwjwiaAUs",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -60,
+        780
+      ],
+      "id": "1bb495d9-b70f-4312-984d-f01d330a8632",
+      "name": "Wait1",
+      "webhookId": "7a24c18b-9def-4ec4-bb1f-1b8d80575206"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "users"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3280,
+        840
+      ],
+      "id": "72e84393-c41a-4fbd-a6c1-a2a51ecd8071",
+      "name": "load_user1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      },
+      "disabled": true
+    }
+  ],
+  "connections": {
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Variáveis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "busca_usuario": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "add_agua": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insere_Refeicao_tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "load_user": {
+      "main": [
+        [
+          {
+            "node": "load_diary_days",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "load_diary_days": {
+      "main": [
+        [
+          {
+            "node": "if exist diary_days",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if exist diary_days": {
+      "main": [
+        [
+          {
+            "node": "Globals",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create DiaryDay",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create DiaryDay": {
+      "main": [
+        [
+          {
+            "node": "Globals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Globals": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Redis1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Redis2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File1": {
+      "main": [
+        [
+          {
+            "node": "OpenAI1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields3": {
+      "main": [
+        [
+          {
+            "node": "Convert to File1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If3": {
+      "main": [
+        [
+          {
+            "node": "Redis5",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Redis4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis3": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis4": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis5": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields4": {
+      "main": [
+        [
+          {
+            "node": "Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Redis3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI1": {
+      "main": [
+        [
+          {
+            "node": "If3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis2": {
+      "main": [
+        [
+          {
+            "node": "load_user",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Variáveis": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "busca_refeicoes_dia": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resposta. Rapida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resposta. Rapida": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "primary-production-0299.up.railway.app",
+            "user-agent": "axios/1.8.4",
+            "content-length": "1079",
+            "accept-encoding": "gzip, compress, deflate, br",
+            "content-type": "application/json",
+            "x-forwarded-for": "162.220.232.85",
+            "x-forwarded-host": "primary-production-0299.up.railway.app",
+            "x-forwarded-proto": "https",
+            "x-railway-edge": "railway/us-west1",
+            "x-railway-request-id": "sbov8Ir9RL2JrTNS-053Mw_3485859946",
+            "x-real-ip": "162.220.232.85",
+            "x-request-start": "1745437016656"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "event": "messages.upsert",
+            "instance": "Dieta Fácil Homologacao",
+            "data": {
+              "key": {
+                "remoteJid": "558599028259@s.whatsapp.net",
+                "fromMe": false,
+                "id": "DAE2D6BB3D7526ED9A804E1567390B05"
+              },
+              "pushName": "Vitorio",
+              "status": "DELIVERY_ACK",
+              "message": {
+                "messageContextInfo": {
+                  "deviceListMetadata": {
+                    "senderKeyHash": "7DO8PLWc8y64bg==",
+                    "senderTimestamp": "1745107416",
+                    "recipientKeyHash": "gIu00NGxePO/aA==",
+                    "recipientTimestamp": "1744914782"
+                  },
+                  "deviceListMetadataVersion": 2,
+                  "messageSecret": "y+JkB0qmBIFGqSi2FL/LzT2y5BBwL22LFBR7gUiEU70="
+                },
+                "conversation": "Lanchei \n\n1 fatia de queijo de bufada \n1 fayia de peito de peru\n200ml de suco de abacaxi"
+              },
+              "contextInfo": {
+                "forwardingScore": 1,
+                "isForwarded": true
+              },
+              "messageType": "conversation",
+              "messageTimestamp": 1745437016,
+              "instanceId": "06216ed6-03a4-47c3-a693-7ec90c5b59ef",
+              "source": "android"
+            },
+            "destination": "https://primary-production-0299.up.railway.app/webhook/dieta",
+            "date_time": "2025-04-23T16:36:56.510Z",
+            "sender": "5511912477879@s.whatsapp.net",
+            "server_url": "https://evolution-api-production-61b7.up.railway.app",
+            "apikey": "2BCE7551B524-4BDA-B592-7BA252AEA1F3"
+          },
+          "webhookUrl": "https://primary-production-0299.up.railway.app/webhook/dieta",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "versionId": "f4093afb-f227-4cfc-a5f2-3e0036319c6f",
+  "triggerCount": 1,
+  "tags": []
+}
