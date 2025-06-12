@@ -1,0 +1,1234 @@
+{
+  "createdAt": "2025-06-03T00:57:04.957Z",
+  "updatedAt": "2025-06-09T11:25:31.666Z",
+  "id": "idMT9YPONhIw0lv6",
+  "name": "Message Classifier",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dieta-classifier",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -920,
+        -140
+      ],
+      "id": "7f65f01a-81d0-4ca8-b703-99599fbc48a3",
+      "name": "Webhook Classifier",
+      "webhookId": "c9c8cbda-9846-4930-ad4a-9b248eb7f103"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "msg-data",
+              "name": "messageData",
+              "value": "={{ {\n  phoneNumber: $('Webhook Classifier').item.json.body.data.key.remoteJid,\n  messageType: $('Webhook Classifier').item.json.body.data.messageType,\n  messageText: (() => {\n    const webhook = $('Webhook Classifier').item.json.body.data;\n    \n    // Texto direto\n    if (webhook.message?.conversation) return webhook.message.conversation;\n    if (webhook.message?.extendedTextMessage?.text) return webhook.message.extendedTextMessage.text;\n    \n    // Áudio transcrito (só se o node foi executado)\n    try {\n      if ($('Audio Transcription').all().length > 0) {\n        return $('Audio Transcription').last().json?.audio?.text || '';\n      }\n    } catch (e) {\n      // Node não executado\n    }\n    \n    return '';\n  })(),\n  imageCaption: $('Webhook Classifier').item.json.body.data.message?.imageMessage?.caption || '',\n  hasAudio: $('Webhook Classifier').item.json.body.data.messageType === 'audioMessage',\n  hasImage: $('Webhook Classifier').item.json.body.data.messageType === 'imageMessage',\n  timestamp: $('Webhook Classifier').item.json.body.data.messageTimestamp,\n  pushName: $('Webhook Classifier').item.json.body.data.pushName,\n  userId: $('Load User').item.json.id,\n  imageMessage: $('Webhook Classifier').item.json.body.data.message?.imageMessage,\n  base64: $('Webhook Classifier').item.json.body.data.message.base64\n} }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1840,
+        -160
+      ],
+      "id": "9a26609b-66b5-4209-8f7e-3944b87cf460",
+      "name": "Extract Message Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Classificador inteligente de mensagens\nconst messageData = $('Extract Message Data').first().json.messageData;\nconst messageText = (messageData.messageText || messageData.imageCaption || '').toLowerCase().trim();\n\n// Patterns para classificação\nconst patterns = {\n  EXPRESS: [\n    // Cumprimentos básicos\n    /^(oi|olá|hey|e aí|salve|bom dia|boa tarde|boa noite)/i,\n    /^(como (está|vai|anda)|tudo bem|beleza|tranquilo)/i,\n    \n    // Confirmações simples\n    /^(ok|okay|entendi|beleza|show|perfeito|legal|valeu)/i,\n    /^(obrigad|brigad|vlw|thanks)/i,\n    \n    // Navegação/Comandos\n    /^(menu|ajuda|help|comandos|início|start)/i,\n    /^(cancelar|sair|parar|tchau|até)/i,\n    \n    // Status muito simples\n    /^(como estou|status)/i\n  ],\n  \n  STANDARD: [\n    // Água simples\n    /^tomei \\d+ml/i,\n    /^bebi \\d+ml/i,\n    /^\\d+ml de água/i,\n    /(água|hidrat)/i,\n    \n    // Consultas de resumo\n    /^(resumo|como estamos|minhas metas)/i,\n    /^(total de hoje|quanto (consumi|bebi))/i,\n    \n    // Perguntas educativas simples\n    /(posso comer|qual melhor|é bom|faz mal)/i,\n    /(dica|sugestão|recomend)/i,\n    /(quantas calorias|macro)/i\n  ],\n  \n  NUTRITION: [\n    // Registro de refeições\n    /(comi|almocei|jantei|lanchei|tomei café)/i,\n    /(café da manhã|almoço|jantar|lanche)/i,\n    \n    // Quantidades específicas\n    /\\d+g|\\d+ gramas/i,\n    /\\d+ unidade|\\d+ fatia|\\d+ colher/i,\n    /\\d+ml.*[^água]/i, // ml que não seja de água\n    \n    // Alimentos específicos com detalhes\n    /(proteína|carboidrato|caloria|fibra).*\\d/i,\n    /(arroz|feijão|carne|frango|peixe|ovo|pão|leite).*\\d/i,\n    \n    // Análises complexas\n    /(relatório|análise completa|feedback|balanço)/i,\n    /(déficit|superávit|meta diária)/i\n  ]\n};\n\n// Função para classificar\nfunction classifyMessage(text, messageData) {\n  // Casos especiais prioritários\n  if (messageData.hasImage) {\n    return 'VISION';\n  }\n  \n  if (messageData.hasAudio) {\n    return 'NUTRITION'; // Áudio geralmente é para registrar refeições\n  }\n  \n  // Se mensagem muito curta (< 3 palavras), provavelmente é EXPRESS\n  const wordCount = text.split(/\\s+/).length;\n  if (wordCount === 1 && text.length < 10 && !/^(resumo|água|metas|status)$/i.test(text)) {\n    return 'EXPRESS';\n  }\n  \n  // Verificar patterns por ordem de prioridade\n  for (const [category, patternList] of Object.entries(patterns)) {\n    for (const pattern of patternList) {\n      if (pattern.test(text)) {\n        return category;\n      }\n    }\n  }\n  \n  // Heurísticas adicionais\n  \n  // Se contém números + unidades de medida = NUTRITION\n  if (/\\d+.*?(g|ml|mg|kg|unidade|fatia|colher|xícara|copo)/i.test(text)) {\n    return 'NUTRITION';\n  }\n  \n  // Se lista vários alimentos = NUTRITION\n  const foodWords = text.match(/(arroz|feijão|carne|frango|peixe|ovo|pão|leite|queijo|presunto|salada|tomate|alface|batata|macarrão|massa|suco|café|chá)/gi);\n  if (foodWords && foodWords.length >= 2) {\n    return 'NUTRITION';\n  }\n  \n  // Se mensagem longa (> 50 chars) e não foi classificada = NUTRITION\n  if (text.length > 50) {\n    return 'NUTRITION';\n  }\n  \n  // Default para mensagens médias\n  return 'STANDARD';\n}\n\n// Classificar a mensagem\nconst classification = classifyMessage(messageText, messageData);\n\n// Configurações por tipo\nconst config = {\n  EXPRESS: {\n    queue: 'queue:express',\n    model: 'gpt-4o-mini',\n    priority: 1,\n    timeout: 3000,\n    maxRetries: 2,\n    estimatedTokens: 150\n  },\n  STANDARD: {\n    queue: 'queue:standard', \n    model: 'gpt-4o-mini',\n    priority: 2,\n    timeout: 8000,\n    maxRetries: 3,\n    estimatedTokens: 500\n  },\n  NUTRITION: {\n    queue: 'queue:nutrition',\n    model: 'gpt-4o',\n    priority: 3,\n    timeout: 30000,\n    maxRetries: 5,\n    estimatedTokens: 2000\n  },\n  VISION: {\n    queue: 'queue:vision',\n    model: 'gpt-4o',\n    priority: 4,\n    timeout: 45000,\n    maxRetries: 3,\n    estimatedTokens: 3000\n  }\n};\n\n// Detectar situações especiais\nconst specialFlags = {\n  isGreeting: /^(oi|olá|bom dia|boa tarde|boa noite)/i.test(messageText),\n  isThankYou: /^(obrigad|brigad|valeu|thanks)/i.test(messageText),\n  isQuestion: messageText.includes('?'),\n  hasNumbers: /\\d/.test(messageText),\n  isList: messageText.includes('\\n') || (messageText.match(/,/g) || []).length > 2\n};\n\nreturn [{\n  json: {\n    originalMessage: {\n      phoneNumber: messageData.phoneNumber,\n      messageType: messageData.messageType,\n      imageMessage: messageData.imageMessage,\n      imageCaption: messageData.imageCaption,\n      pushName: messageData.pushName,\n      messageText: messageData\n    },\n    classification: {\n      type: classification,\n      confidence: getConfidence(messageText, classification),\n      reasoning: getReasoningLog(messageText, classification)\n    },\n    routing: config[classification],\n    analysis: {\n      messageLength: messageText.length,\n      wordCount: messageText.split(/\\s+/).length,\n      specialFlags: specialFlags,\n      processingTime: new Date().toISOString()\n    }\n  }\n}];\n\n// Função para calcular confiança na classificação\nfunction getConfidence(text, classification) {\n  const wordCount = text.split(/\\s+/).length;\n  \n  if (classification === 'EXPRESS' && wordCount <= 2) return 0.95;\n  if (classification === 'VISION') return 1.0;\n  if (classification === 'NUTRITION' && /\\d+.*?(g|ml|kg)/i.test(text)) return 0.9;\n  \n  return 0.75; // Confiança padrão\n}\n\n// Log do raciocínio para debug\nfunction getReasoningLog(text, classification) {\n  return {\n    textLength: text.length,\n    wordCount: text.split(/\\s+/).length,\n    hasNumbers: /\\d/.test(text),\n    hasUnits: /\\d+.*?(g|ml|kg|unidade)/i.test(text),\n    classification: classification\n  };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2020,
+        -160
+      ],
+      "id": "f3ae3424-067a-4830-89e8-5990c3ad81fe",
+      "name": "Message Classifier Logic"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.classification.type }}",
+                    "rightValue": "EXPRESS",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "6b4aa7dc-a848-4fc3-bae5-79637627647b"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "express"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.classification.type }}",
+                    "rightValue": "STANDARD",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "edd96ff2-73ef-4062-9f00-e56e7454c2fb"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "standard"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.classification.type }}",
+                    "rightValue": "NUTRITION",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "7f9ae7c7-28cc-4578-a874-0a7298a3b62e"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "nutrition"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.classification.type }}",
+                    "rightValue": "VISION",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "9b69820d-82da-4a01-8a99-4eee170b7ebe"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "vision"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        2220,
+        -180
+      ],
+      "id": "8fe913de-6025-4878-bf12-7d727276148d",
+      "name": "Route by Classification"
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "queue:express",
+        "messageData": "={{ JSON.stringify($json) }}",
+        "tail": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2420,
+        -480
+      ],
+      "id": "91526c13-b7fe-4fa9-917b-610e3a7296f0",
+      "name": "Queue Express",
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "queue:standard",
+        "messageData": "={{ JSON.stringify($json) }}",
+        "tail": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2420,
+        -280
+      ],
+      "id": "5582d8a6-c7a5-4d0f-88ea-00d9f0b65348",
+      "name": "Queue Standard",
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "queue:vision",
+        "messageData": "={{ JSON.stringify($json) }}",
+        "tail": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2420,
+        140
+      ],
+      "id": "c21a9cda-2d80-480e-bf70-052c67c411d1",
+      "name": "Queue Vision",
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "Dieta Facil Dev",
+        "remoteJid": "={{ $json.originalMessage.phoneNumber.split('@')[0] }}",
+        "messageText": "Recebido! ⚡ Processando sua mensagem...",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        2620,
+        -480
+      ],
+      "id": "d9701fca-29d9-46c7-ac4b-4adff843e5ac",
+      "name": "Quick ACK Express",
+      "credentials": {
+        "evolutionApi": {
+          "id": "8Vyn5rMuwjwiaAUs",
+          "name": "Instancia Dev"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "Dieta Facil Dev",
+        "remoteJid": "={{ $json.originalMessage.phoneNumber.split('@')[0] }}",
+        "messageText": "Analisando sua consulta... 🔍",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        2620,
+        -280
+      ],
+      "id": "a5f281f6-cfac-416e-89b8-8be2a3afba59",
+      "name": "Quick ACK Standard",
+      "credentials": {
+        "evolutionApi": {
+          "id": "8Vyn5rMuwjwiaAUs",
+          "name": "Instancia Dev"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "Dieta Facil Dev",
+        "remoteJid": "={{ $json.originalMessage.phoneNumber.split('@')[0] }}",
+        "messageText": "Calculando seus nutrientes... 🧮 Aguarde alguns segundos.",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        2620,
+        -80
+      ],
+      "id": "3315cabc-2161-418a-9a6e-8403d0e5c94c",
+      "name": "Quick ACK Nutrition",
+      "credentials": {
+        "evolutionApi": {
+          "id": "8Vyn5rMuwjwiaAUs",
+          "name": "Instancia Dev"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "Dieta Facil Dev",
+        "remoteJid": "={{ $json.originalMessage.phoneNumber.split('@')[0] }}",
+        "messageText": "Analisando sua imagem... 📸 Isso pode levar até 30 segundos.",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        2620,
+        140
+      ],
+      "id": "164541ad-6980-4288-98ae-6e0f97ce84e2",
+      "name": "Quick ACK Vision",
+      "credentials": {
+        "evolutionApi": {
+          "id": "8Vyn5rMuwjwiaAUs",
+          "name": "Instancia Dev"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "message_classifications",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "phone_number",
+              "fieldValue": "={{ $('Extract Message Data').last().json.messageData.phoneNumber }}"
+            },
+            {
+              "fieldId": "message_text",
+              "fieldValue": "={{ $('Extract Message Data').last().json.messageData.messageText }}"
+            },
+            {
+              "fieldId": "classification_type",
+              "fieldValue": "={{ $('Route by Classification').item.json.classification.type }}"
+            },
+            {
+              "fieldId": "confidence",
+              "fieldValue": "={{ $('Route by Classification').item.json.classification.confidence }}"
+            },
+            {
+              "fieldId": "estimated_tokens",
+              "fieldValue": "={{ $('Route by Classification').item.json.routing.estimatedTokens }}"
+            },
+            {
+              "fieldId": "queue_name",
+              "fieldValue": "={{ $('Route by Classification').item.json.routing.queue }}"
+            },
+            {
+              "fieldId": "model_assigned",
+              "fieldValue": "={{ $('Route by Classification').item.json.routing.model }}"
+            },
+            {
+              "fieldId": "analysis_data",
+              "fieldValue": "={{ $('Route by Classification').item.json.analysis }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2840,
+        -120
+      ],
+      "id": "a1846a3a-e4b9-49e8-ae03-e884a3673f17",
+      "name": "Log Classification",
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "incr",
+        "key": "metrics:classifications:total"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        3080,
+        -120
+      ],
+      "id": "25544180-1ba3-4447-a26e-0423dceec054",
+      "name": "Increment Total Metrics",
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "incr",
+        "key": "=metrics:classifications:{{ $('Log Classification').item.json.classification_type.toLowerCase() }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        3100,
+        120
+      ],
+      "id": "27be1f73-b16b-4eb2-bccd-49849afc3474",
+      "name": "Increment Type Metrics",
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "queue:nutrition",
+        "messageData": "={{ JSON.stringify($json) }}",
+        "tail": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2420,
+        -80
+      ],
+      "id": "31be6449-51eb-4078-ab37-f008c06f5ef7",
+      "name": "Queue Nutrition",
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "users",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "whatsapp",
+              "keyValue": "={{ $json.body.data.key.remoteJid.split('@')[0] }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        -140
+      ],
+      "id": "6362ec46-9174-4c18-a99b-d38853ccae3a",
+      "name": "Load User",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "data",
+        "binaryPropertyName": "=data",
+        "options": {
+          "fileName": "file.ogg",
+          "mimeType": "application/ogg"
+        }
+      },
+      "id": "4582cbeb-2f85-4c9f-934e-7b23e83c93d7",
+      "name": "Convert to File",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1300,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3c5ccbc9-69d1-4b13-a7c3-e6945bc8c655",
+              "name": "data",
+              "value": "={{ $('Webhook Classifier').item.json.body.data.message.base64 }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "127e75b5-9420-4072-b9ad-abf095b40b15",
+      "name": "Edit Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1140,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {}
+      },
+      "id": "5b6a7332-1d7b-4365-bc28-c87e4d1d115a",
+      "name": "OpenAI",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.6,
+      "position": [
+        1460,
+        -40
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "hDbVS33gRemwNAep",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "52aaf749-fe4f-44e4-880e-15b2bfc027f1",
+                    "leftValue": "={{ $('Webhook Classifier').item.json[\"body\"][\"data\"][\"messageType\"] }}",
+                    "rightValue": "extendedTextMessage",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "text"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "e514e613-fd6a-48bd-b0ae-bae2448c810e",
+                    "leftValue": "={{ $('Webhook Classifier').item.json[\"body\"][\"data\"][\"messageType\"] }}",
+                    "rightValue": "conversation",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "text"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Webhook Classifier').item.json[\"body\"][\"data\"][\"messageType\"] }}",
+                    "rightValue": "audioMessage",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "3c977ad7-eec0-4b4b-8431-ac6d381dd860"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "audio"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "6bf5a61d-c611-4a9d-9635-91286f9ba056",
+                    "leftValue": "={{ $('Webhook Classifier').item.json[\"body\"][\"data\"][\"messageType\"] }}",
+                    "rightValue": "imageMessage",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "image"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5742dfd1-9dd0-4b5f-8f6f-45e6056b4125",
+      "name": "Switch1",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        820,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "91cdb0d9-b5c4-4868-bf67-d1b393e01795",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        180,
+        -160
+      ],
+      "id": "95d030f5-1e78-48df-9235-299e27f3dad8",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2362d9d5-fd51-4db9-94b7-7263f904bae2",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -480,
+        -140
+      ],
+      "id": "ab98a5d6-1ce8-4a78-8d25-683aab8301ac",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "={{ $('Webhook Classifier').item.json.body.instance }}",
+        "remoteJid": "={{ $('Webhook Classifier').item.json.body.data.key.remoteJid.split('@')[0] }}",
+        "messageText": "🎉 *Olá! Seja muito bem-vindo(a) ao Dieta Fácil!* 🎉\n\nQue incrível ter você aqui! 🌟\n\nSou seu assistente nutricional inteligente e estou aqui para te ajudar a:\n\n🥗 *Monitorar sua alimentação* com análise de fotos\n📊 *Acompanhar suas metas* nutricionais diárias  \n💪 *Alcançar seus objetivos* de forma saudável\n🤖 *Receber orientações* personalizadas 24/7\n\nPara começarmos nossa jornada juntos, preciso conhecer um pouquinho sobre você! \n\n👇 *Clique no link abaixo para fazer um quiz rápido (2 minutos):*\n\n🔗 https://dietafacil.app.br/quiz\n\nDepois que finalizar, volte aqui e me mande um *\"pronto\"* que vamos começar a cuidar da sua alimentação! \n\n✨ *Sua transformação começa agora!* ✨\n\n_💡 Dica: Depois do cadastro, você pode me enviar fotos dos seus pratos que eu analiso tudo para você!_",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        40
+      ],
+      "id": "b4543bac-e766-40cd-b8e4-e1602177bf33",
+      "name": "Menssagem Novo user",
+      "credentials": {
+        "evolutionApi": {
+          "id": "8Vyn5rMuwjwiaAUs",
+          "name": "Instancia Dev"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "user_subscriptions",
+        "returnAll": true,
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "is_active",
+              "condition": "is",
+              "keyValue": "True"
+            },
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        -160
+      ],
+      "id": "602cfa67-7da4-4835-aa7f-5d0c63122161",
+      "name": "Load Subscription",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "={{ $('Webhook Classifier').item.json.body.instance }}",
+        "remoteJid": "={{ $('Webhook Classifier').item.json.body.data.key.remoteJid.split('@')[0] }}",
+        "messageText": "🚨 Oi! Parece que você ainda não tem acesso ativo ao Dieta Fácil.\n\nMas a boa notícia é que dá pra voltar (ou começar) agora mesmo! 😊\n\n💡 Com o Dieta Fácil, você desbloqueia:\n✅ Planos personalizados para seus objetivos\n📸 Contador de calorias por foto (com IA)\n📊 Acompanhamento inteligente de macros e calorias\n💬 Suporte direto com especialistas\n\n🎁 Garanta seu acesso agora:\n🔹 Plano Mensal\nhttps://checkout.dietafacil.app.br/subscribe/assinatura-dieta-facil-plano-mensal\n🔹 Plano Trimestral\nhttps://checkout.dietafacil.app.br/subscribe/assinatura-dieta-facil-plano-trimestral\n🔹 Plano Anual\nhttps://checkout.dietafacil.app.br/subscribe/assinatura-dieta-facil-plano-anual\n\n⏱ Comece hoje mesmo e dê o próximo passo rumo ao seu resultado 💪",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        660,
+        20
+      ],
+      "id": "1461ceae-af20-40d1-92db-7c6128179cf7",
+      "name": "Menssagem Novo user1",
+      "credentials": {
+        "evolutionApi": {
+          "id": "8Vyn5rMuwjwiaAUs",
+          "name": "Instancia Dev"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "65dfa695-9b2d-48d5-bbbf-527c290d61ba",
+              "name": "audio.text",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1640,
+        -40
+      ],
+      "id": "808b7b83-2d1e-443e-a991-2072c6d8983d",
+      "name": "Audio Transcription"
+    }
+  ],
+  "connections": {
+    "Webhook Classifier": {
+      "main": [
+        [
+          {
+            "node": "Load User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Message Data": {
+      "main": [
+        [
+          {
+            "node": "Message Classifier Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message Classifier Logic": {
+      "main": [
+        [
+          {
+            "node": "Route by Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Classification": {
+      "main": [
+        [
+          {
+            "node": "Queue Express",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Queue Standard",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Queue Nutrition",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Queue Vision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue Express": {
+      "main": [
+        [
+          {
+            "node": "Quick ACK Express",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue Standard": {
+      "main": [
+        [
+          {
+            "node": "Quick ACK Standard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue Vision": {
+      "main": [
+        [
+          {
+            "node": "Quick ACK Vision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quick ACK Express": {
+      "main": [
+        [
+          {
+            "node": "Log Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quick ACK Standard": {
+      "main": [
+        [
+          {
+            "node": "Log Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quick ACK Nutrition": {
+      "main": [
+        [
+          {
+            "node": "Log Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quick ACK Vision": {
+      "main": [
+        [
+          {
+            "node": "Log Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Classification": {
+      "main": [
+        [
+          {
+            "node": "Increment Total Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Increment Total Metrics": {
+      "main": [
+        [
+          {
+            "node": "Increment Type Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue Nutrition": {
+      "main": [
+        [
+          {
+            "node": "Quick ACK Nutrition",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load User": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [
+          {
+            "node": "Extract Message Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Message Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Message Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Audio Transcription",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Menssagem Novo user1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Load Subscription",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Menssagem Novo user",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Subscription": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audio Transcription": {
+      "main": [
+        [
+          {
+            "node": "Extract Message Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {
+    "Webhook Classifier": [
+      {
+        "json": {
+          "headers": {
+            "host": "n8n.listaespera.dev.br",
+            "user-agent": "axios/1.7.9",
+            "content-length": "14095",
+            "accept-encoding": "gzip, compress, deflate, br",
+            "content-type": "application/json",
+            "x-forwarded-for": "5.78.96.92",
+            "x-forwarded-host": "n8n.listaespera.dev.br",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "1fa9f2953d4b",
+            "x-real-ip": "5.78.96.92"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "event": "messages.upsert",
+            "instance": "Dieta Facil Dev",
+            "data": {
+              "key": {
+                "remoteJid": "558596122854@s.whatsapp.net",
+                "fromMe": false,
+                "id": "82B427FE84EF33FFC937A1543A7A4241"
+              },
+              "pushName": "Gustavo Gadelha",
+              "status": "DELIVERY_ACK",
+              "message": {
+                "imageMessage": {
+                  "url": "https://mmg.whatsapp.net/v/t62.7118-24/30759211_678769391798595_67496946960258188_n.enc?ccb=11-4&oh=01_Q5Aa1gEy-nkrTFjBFNAyZVnD6C9qvLKiMnPD5TgYxz8AYAWKKQ&oe=686AD12D&_nc_sid=5e03e0&mms3=true",
+                  "mimetype": "image/jpeg",
+                  "caption": "Minha janta",
+                  "fileSha256": "3OqF3XYe4ZZ++LtbYxcoHozVef9mGKV9HmKzJVtlWhk=",
+                  "fileLength": "8568",
+                  "height": 224,
+                  "width": 224,
+                  "mediaKey": "iMXqWG23e37ALDtJiovifLW/Olcx4qRkZ3fshkeLeWQ=",
+                  "fileEncSha256": "5xoCGndq7G1tIgJxXWivnAqe+cyE5aV/O6imEL9D6qU=",
+                  "directPath": "/v/t62.7118-24/30759211_678769391798595_67496946960258188_n.enc?ccb=11-4&oh=01_Q5Aa1gEy-nkrTFjBFNAyZVnD6C9qvLKiMnPD5TgYxz8AYAWKKQ&oe=686AD12D&_nc_sid=5e03e0",
+                  "mediaKeyTimestamp": "1749249845",
+                  "jpegThumbnail": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEABsbGxscGx4hIR4qLSgtKj04MzM4PV1CR0JHQl2NWGdYWGdYjX2Xe3N7l33gsJycsOD/2c7Z//////////////8BGxsbGxwbHiEhHiotKC0qPTgzMzg9XUJHQkdCXY1YZ1hYZ1iNfZd7c3uXfeCwnJyw4P/Zztn////////////////CABEIAEgASAMBIgACEQEDEQH/xAAwAAADAQEBAQAAAAAAAAAAAAAAAwQCBQEGAQADAQEAAAAAAAAAAAAAAAAAAQIDBP/aAAwDAQACEAMQAAAAVuX3B1YnY2KfulrejWISgmVmDlfu1R769XXNst9NK5WqTnCiwx7hsT10UuNTY22iP6DhC5Q8U9N8zc7dqfLKnze6Q/jWYioisCJgAxgDZQFRN6EUoAP/xAAjEAACAgIBBAMBAQAAAAAAAAABAgADERIhBCJBURATMWEy/9oACAEBAAE/AAW9wf0zasfrCG2mG5fCRi7+MTpl1cn0I5sMcM3Ewfc1n15jotajHMVgo/xFt7jxxEU/oMyWHIgrwZiYELBDyMgyvLsO3CQqd9VcGUU/Y5Uw9GVUFGwYi53VgNh+Gak5mWMw01Pkz7LK2wGlfUWI2cSrrCp4WDqrLAQrS+x68KDyZT1eXwTiBRCogTullHOZ9ZlVZHiU19xwP2dcdbf6BErDHJbEDjxAWPiKhyCTCMiNUHHoxKQBFQVVFpaUcnaPUB3JEUQY+PEWJOrt7NBDVMawMBBZC59xWJaKRrnMNun5CdjkziMFm5gY+5tAeBFIMdFIBA8RQeR8ET//xAAdEQACAwACAwAAAAAAAAAAAAAAAQIQERIhMTJR/9oACAECAQE/AOZHZHB/RdIcUzGQ9TTTlUal1g26QiT1mukLw7//xAAeEQEAAgICAwEAAAAAAAAAAAABABEQEgJREyExQf/aAAgBAwEBPwDynU3Zty7j7lQ4coFFM1msTDLlr8gn6YcBREMuf//Z"
+                },
+                "messageContextInfo": {
+                  "deviceListMetadata": {
+                    "senderKeyHash": "f4fA42R/YvWBEQ==",
+                    "senderTimestamp": "1748476085",
+                    "recipientKeyHash": "25ARt7H/PsYjMw==",
+                    "recipientTimestamp": "1748695529"
+                  },
+                  "deviceListMetadataVersion": 2,
+                  "messageSecret": "xOxjbj2wI7Te41HILPU0on7fmQ5YhLEj8Mt8WxEh990="
+                },
+                "base64": "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"
+              },
+              "contextInfo": null,
+              "messageType": "imageMessage",
+              "messageTimestamp": 1749249846,
+              "instanceId": "a97632bb-87d5-43b3-a889-af416de9c2b1",
+              "source": "android"
+            },
+            "destination": "https://n8n.listaespera.dev.br/webhook/dieta-classifier",
+            "date_time": "2025-06-06T19:44:06.482Z",
+            "sender": "558591885354@s.whatsapp.net",
+            "server_url": "http://evo-b8sococ0ko0ko8w4o8sko00o.5.78.96.92.sslip.io",
+            "apikey": "A459138BBBCE-4C06-B039-28FF9462296D"
+          },
+          "webhookUrl": "https://n8n.listaespera.dev.br/webhook/dieta-classifier",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "versionId": "5de5f2e4-235b-42dd-aa59-505b647a3714",
+  "triggerCount": 1,
+  "tags": [
+    {
+      "createdAt": "2025-05-30T11:31:18.780Z",
+      "updatedAt": "2025-05-30T11:31:18.780Z",
+      "id": "MkMWJqdLSlMeJZ5k",
+      "name": "claude_solution"
+    }
+  ]
+}
