@@ -1,0 +1,585 @@
+{
+  "createdAt": "2025-05-30T19:54:41.624Z",
+  "updatedAt": "2025-05-31T13:25:00.716Z",
+  "id": "PRUCTw9DmNUO6FOM",
+  "name": "Queue Monitor",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1080,
+        320
+      ],
+      "id": "018cb4e9-11a7-4707-9187-c1f62d73e2ff",
+      "name": "Monitor Schedule"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lista das filas para monitorar\nconst queues = [\n  'queue:express',\n  'queue:standard', \n  'queue:nutrition',\n  'queue:vision'\n];\n\nreturn queues.map(queue => ({\n  json: {\n    queueName: queue,\n    timestamp: new Date().toISOString()\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        320
+      ],
+      "id": "9ac4ec6e-bbe6-4df8-906f-c1664f159cab",
+      "name": "Prepare Queue List"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "key": "incremental-total",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -680,
+        320
+      ],
+      "id": "45ec4952-20cf-45bf-88aa-3b376b94f67e",
+      "name": "Get Queue Length",
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "key": "=metrics:{{ $json.queueName.split(':')[1] }}:completed",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        320
+      ],
+      "id": "4184450c-5352-4233-9c9d-c968aed48993",
+      "name": "Get Completed Count",
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "key": "=metrics:{{ $('Get Queue Length').item.json.queueName.split(':')[1] }}:last_processed",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -280,
+        320
+      ],
+      "id": "1b4d770a-f7df-4fc4-829b-219be672f812",
+      "name": "Get Last Processed",
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calcular métricas da fila\nconst queueData = $('Get Queue Length').item.json;\nconst completedCount = parseInt($('Get Completed Count').item.json.propertyName || 0);\nconst lastProcessed = parseInt($('Get Last Processed').item.json.propertyName || 0);\nconst currentTime = Date.now();\nconst queueLength = queueData.propertyName;\nconst queueName = queueData.queueName;\n\n// Calcular taxa de processamento (mensagens por minuto)\nconst timeSinceLastProcessed = lastProcessed ? (currentTime - lastProcessed) / 1000 / 60 : 0;\nconst processingRate = timeSinceLastProcessed > 0 ? (60 / timeSinceLastProcessed) : 0;\n\n// Determinar status da fila\nlet status = 'healthy';\nlet alertLevel = 'none';\n\nif (queueLength > 50) {\n  status = 'overloaded';\n  alertLevel = 'high';\n} else if (queueLength > 20) {\n  status = 'busy';\n  alertLevel = 'medium';\n} else if (queueLength > 10) {\n  status = 'active';\n  alertLevel = 'low';\n}\n\n// Se não há processamento há mais de 5 minutos\nif (timeSinceLastProcessed > 5) {\n  status = 'stalled';\n  alertLevel = 'critical';\n}\n\nreturn [{\n  json: {\n    queueName: queueName,\n    queueLength: queueLength,\n    completedCount: completedCount,\n    processingRate: Math.round(processingRate * 100) / 100,\n    timeSinceLastProcessed: Math.round(timeSinceLastProcessed * 100) / 100,\n    status: status,\n    alertLevel: alertLevel,\n    timestamp: new Date().toISOString(),\n    queueType: queueName.split(':')[1]\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        320
+      ],
+      "id": "5167de21-e681-448d-ae6f-810fe1ec0aff",
+      "name": "Calculate Queue Metrics"
+    },
+    {
+      "parameters": {
+        "tableId": "queue_monitoring",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "queue_name",
+              "fieldValue": "={{ $json.queueName }}"
+            },
+            {
+              "fieldId": "queue_length",
+              "fieldValue": "={{ $json.queueLength }}"
+            },
+            {
+              "fieldId": "processing_rate",
+              "fieldValue": "={{ $json.processingRate }}"
+            },
+            {
+              "fieldId": "timestamp",
+              "fieldValue": "={{ $json.timestamp }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        120,
+        320
+      ],
+      "id": "b2245081-3213-421f-a209-54d9a1d4375d",
+      "name": "Save Queue Metrics",
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "alert-needed",
+              "leftValue": "={{ $json.alertLevel }}",
+              "rightValue": "none",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        320,
+        320
+      ],
+      "id": "7ee71876-d2f9-4bce-a438-f8cceb4c6e70",
+      "name": "Check Alert Needed"
+    },
+    {
+      "parameters": {
+        "tableId": "system_alerts",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "alert_type",
+              "fieldValue": "QUEUE_OVERFLOW"
+            },
+            {
+              "fieldId": "severity",
+              "fieldValue": "={{ $json.alertLevel.toUpperCase() }}"
+            },
+            {
+              "fieldId": "message",
+              "fieldValue": "=Fila {{ $json.queueName }} com {{ $json.queueLength }} mensagens pendentes"
+            },
+            {
+              "fieldId": "details",
+              "fieldValue": "={{ JSON.stringify($json) }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        520,
+        220
+      ],
+      "id": "549ba866-adff-4bfb-a7e3-48aaf03ee06f",
+      "name": "Create Alert",
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=queue:status:{{ $json.queueType }}",
+        "value": "={{ JSON.stringify({\n  length: $json.queueLength,\n  status: $json.status,\n  rate: $json.processingRate,\n  lastUpdate: $json.timestamp\n}) }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        340,
+        480
+      ],
+      "id": "42272d71-2617-4d01-96fb-917d11580af1",
+      "name": "Update Queue Status",
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1080,
+        620
+      ],
+      "id": "bc90f2f6-fc54-419c-b324-6ff3f2c47376",
+      "name": "Cost Analysis Schedule"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  classification_type,\n  COUNT(*) as message_count,\n  AVG(actual_tokens_used) as avg_tokens,\n  SUM(actual_tokens_used) as total_tokens,\n  AVG(actual_cost_usd) as avg_cost,\n  SUM(actual_cost_usd) as total_cost,\n  AVG(processing_time_ms) as avg_processing_time\nFROM message_classifications \nWHERE created_at >= NOW() - INTERVAL '1 hour'\n  AND status = 'completed'\nGROUP BY classification_type",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -880,
+        620
+      ],
+      "id": "3d8aba04-e010-46a7-bbbe-37f993e88c65",
+      "name": "Get Cost Analysis",
+      "credentials": {
+        "postgres": {
+          "id": "m8W5D6Ml6jkdbYon",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Análise de custos e performance\nconst data = $input.all().map(item => item.json);\n\nconst totalMessages = data.reduce((sum, row) => sum + row.message_count, 0);\nconst totalCost = data.reduce((sum, row) => sum + row.total_cost, 0);\nconst totalTokens = data.reduce((sum, row) => sum + row.total_tokens, 0);\n\n// Calcular métricas\nconst avgCostPerMessage = totalMessages > 0 ? totalCost / totalMessages : 0;\nconst avgTokensPerMessage = totalMessages > 0 ? totalTokens / totalMessages : 0;\n\n// Projeções para 24h\nconst projected24hMessages = totalMessages * 24;\nconst projected24hCost = totalCost * 24;\nconst projected30dCost = totalCost * 24 * 30;\n\n// Breakdown por tipo\nconst breakdown = data.map(row => ({\n  type: row.classification_type,\n  messages: row.message_count,\n  cost: row.total_cost,\n  avgTokens: row.avg_tokens,\n  avgProcessingTime: row.avg_processing_time,\n  percentage: totalMessages > 0 ? (row.message_count / totalMessages * 100).toFixed(1) : 0\n}));\n\n// Detectar anomalias\nconst alerts = [];\n\n// Custo por mensagem muito alto\nif (avgCostPerMessage > 0.01) {\n  alerts.push({\n    type: 'HIGH_COST_PER_MESSAGE',\n    severity: 'HIGH',\n    message: `Custo médio por mensagem: $${avgCostPerMessage.toFixed(4)}`\n  });\n}\n\n// Muitos tokens por mensagem\nif (avgTokensPerMessage > 1500) {\n  alerts.push({\n    type: 'HIGH_TOKEN_USAGE',\n    severity: 'MEDIUM', \n    message: `Média de ${avgTokensPerMessage.toFixed(0)} tokens por mensagem`\n  });\n}\n\n// Projeção de custo mensal alta\nif (projected30dCost > 100) {\n  alerts.push({\n    type: 'HIGH_MONTHLY_PROJECTION',\n    severity: 'HIGH',\n    message: `Projeção mensal: $${projected30dCost.toFixed(2)}`\n  });\n}\n\nreturn [{\n  json: {\n    period: 'last_hour',\n    summary: {\n      totalMessages,\n      totalCost: parseFloat(totalCost.toFixed(4)),\n      totalTokens,\n      avgCostPerMessage: parseFloat(avgCostPerMessage.toFixed(4)),\n      avgTokensPerMessage: parseFloat(avgTokensPerMessage.toFixed(0))\n    },\n    projections: {\n      messages24h: projected24hMessages,\n      cost24h: parseFloat(projected24hCost.toFixed(4)),\n      cost30d: parseFloat(projected30dCost.toFixed(2))\n    },\n    breakdown,\n    alerts,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -680,
+        620
+      ],
+      "id": "50c2fc0b-b832-409b-88d9-34370b772f8f",
+      "name": "Analyze Costs"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "metrics:cost_analysis",
+        "value": "={{ JSON.stringify($json) }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        620
+      ],
+      "id": "e5032e4c-75c8-4b06-aa44-61863960c67a",
+      "name": "Save Cost Analysis",
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-cost-alerts",
+              "leftValue": "={{ $json.alerts.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -280,
+        620
+      ],
+      "id": "84458343-0d95-4256-a510-7e799cdffd0b",
+      "name": "Check Cost Alerts"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Criar alertas de custo\nconst data = $input.first().json;\nconst alerts = data.alerts;\n\nreturn alerts.map(alert => ({\n  json: {\n    alert_type: 'COST_THRESHOLD',\n    severity: alert.severity,\n    message: alert.message,\n    details: JSON.stringify({\n      costAnalysis: data.summary,\n      projections: data.projections,\n      alertType: alert.type\n    })\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        580
+      ],
+      "id": "6f8cc1a7-1779-49ed-a621-10658a757413",
+      "name": "Prepare Cost Alerts"
+    },
+    {
+      "parameters": {
+        "tableId": "system_alerts",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "alert_type",
+              "fieldValue": "={{ $json.alert_type }}"
+            },
+            {
+              "fieldId": "severity",
+              "fieldValue": "={{ $json.severity }}"
+            },
+            {
+              "fieldId": "message",
+              "fieldValue": "={{ $json.message }}"
+            },
+            {
+              "fieldId": "details",
+              "fieldValue": "={{ $json.details }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        120,
+        580
+      ],
+      "id": "9c6095de-2084-4fb9-96bb-e15d826b28e3",
+      "name": "Save Cost Alerts",
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Monitor Schedule": {
+      "main": [
+        [
+          {
+            "node": "Prepare Queue List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Queue List": {
+      "main": [
+        [
+          {
+            "node": "Get Queue Length",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Queue Length": {
+      "main": [
+        [
+          {
+            "node": "Get Completed Count",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Completed Count": {
+      "main": [
+        [
+          {
+            "node": "Get Last Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Last Processed": {
+      "main": [
+        [
+          {
+            "node": "Calculate Queue Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Queue Metrics": {
+      "main": [
+        [
+          {
+            "node": "Save Queue Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Queue Metrics": {
+      "main": [
+        [
+          {
+            "node": "Check Alert Needed",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Queue Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Alert Needed": {
+      "main": [
+        [
+          {
+            "node": "Create Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cost Analysis Schedule": {
+      "main": [
+        [
+          {
+            "node": "Get Cost Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Cost Analysis": {
+      "main": [
+        [
+          {
+            "node": "Analyze Costs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Costs": {
+      "main": [
+        [
+          {
+            "node": "Save Cost Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Cost Analysis": {
+      "main": [
+        [
+          {
+            "node": "Check Cost Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Cost Alerts": {
+      "main": [
+        [
+          {
+            "node": "Prepare Cost Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Cost Alerts": {
+      "main": [
+        [
+          {
+            "node": "Save Cost Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "4cd83924-0d97-4803-ae47-5f1a49e3e689",
+  "triggerCount": 0,
+  "tags": [
+    {
+      "createdAt": "2025-05-30T11:31:18.780Z",
+      "updatedAt": "2025-05-30T11:31:18.780Z",
+      "id": "MkMWJqdLSlMeJZ5k",
+      "name": "claude_solution"
+    }
+  ]
+}
