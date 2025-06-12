@@ -1,0 +1,1473 @@
+{
+  "createdAt": "2025-06-02T17:52:43.875Z",
+  "updatedAt": "2025-06-11T21:58:29.128Z",
+  "id": "g7tHytqjtAIdH6GK",
+  "name": "Nutrition Consumer",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const inputData = $input.first()?.json;\n\nif (!inputData || !inputData.propertyName) {\n console.log('Express Consumer: Nenhuma mensagem na fila');\n return []; // Termina execução sem erro\n}\n// Parse da mensagem da fila\nconst queueData =$input.first().json.propertyName;\nconst messageData = queueData.originalMessage;\nconst classification = queueData.classification;\nconst routing = queueData.routing;\n\n// Capturar tempo de início\nconst startTime = Date.now();\n\n// Normalizar número de telefone\nfunction normalizePhoneNumber(phoneNumber) {\n  const cleanNumber = phoneNumber.split('@')[0];\n  // Remove 9 extra de números brasileiros: 5585999028259 -> 558599028259\n  return cleanNumber.replace(/^(55\\d{2})9(\\d{8})$/, '$1$2');\n}\n\n// Extrair texto da mensagem\nconst messageText = messageData.messageText || messageData.imageCaption || '';\nconst normalizedPhone = normalizePhoneNumber(messageData.phoneNumber);\n\n// Função para detectar produtos Herbalife\nfunction detectHerbalifeProducts(messageText) {\n  const herbalifeKeywords = [\n    'herbalife', 'shake herbalife', 'nutrev', 'fiber concentrate', \n    'fiber powder', 'barra de proteína', 'protein powder', 'protein crunch',\n    'nutri soup', 'sopa instantânea', 'cr7 drive', 'liftoff', \n    'tri-core protein', 'whey protein 3w', 'shake', 'nutreV'\n  ];\n  \n  const normalizedText = messageText.toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^\\w\\s]/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n  \n  const hasHerbalifeKeyword = herbalifeKeywords.some(keyword => \n    normalizedText.includes(keyword.toLowerCase())\n  );\n  \n  if (!hasHerbalifeKeyword) {\n    return { hasHerbalife: false, searchTerms: [] };\n  }\n  \n  const productPatterns = [\n    /shake\\s*(herbalife)?\\s*(baunilha|chocolate|morango|frutas vermelhas)?/gi,\n    /nutrev?/gi,\n    /fiber\\s*(concentrate|powder)/gi,\n    /barra\\s*de\\s*proteína/gi,\n    /protein\\s*(powder|crunch)/gi,\n    /nutri\\s*soup/gi,\n    /sopa\\s*instantânea/gi,\n    /cr7\\s*drive/gi,\n    /liftoff/gi,\n    /tri-?core\\s*protein/gi,\n    /whey\\s*protein\\s*3w/gi\n  ];\n  \n  const detectedTerms = [];\n  productPatterns.forEach(pattern => {\n    const matches = messageText.match(pattern);\n    if (matches) {\n      detectedTerms.push(...matches);\n    }\n  });\n  \n  const quantityPatterns = [\n    /(\\d+(?:\\.\\d+)?)\\s*(?:g|gramas?|ml|mililitros?)/gi,\n    /(\\d+(?:\\.\\d+)?)\\s*(?:colheres?|medidas?|scoops?)/gi,\n    /(\\d+(?:\\.\\d+)?)\\s*(?:porções?|doses?)/gi\n  ];\n  \n  const quantities = [];\n  quantityPatterns.forEach(pattern => {\n    const matches = [...messageText.matchAll(pattern)];\n    matches.forEach(match => {\n      quantities.push({\n        value: parseFloat(match[1]),\n        unit: match[0].replace(match[1], '').trim(),\n        fullMatch: match[0]\n      });\n    });\n  });\n  \n  return {\n    hasHerbalife: true,\n    searchTerms: [...new Set(detectedTerms.map(term => term.trim()))],\n    quantities: quantities,\n    confidence: detectedTerms.length > 0 ? 'high' : 'medium'\n  };\n}\n\n// Determinar tipo de análise nutricional necessária\nfunction analyzeNutritionRequest(text, messageData) {\n  const lowerText = text.toLowerCase().trim();\n  \n  // Tipos de análise\n  const analysisType = {\n    FOOD_REGISTRATION: 'registro_alimento',\n    WATER_INTAKE: 'consumo_agua', \n    MEAL_ANALYSIS: 'analise_refeicao',\n    DAILY_SUMMARY: 'resumo_diario',\n    NUTRITION_QUERY: 'consulta_nutricional',\n    GOAL_TRACKING: 'acompanhamento_meta'\n  };\n  \n  // Detectar tipo de solicitação\n  if (/^bebi \\d+ml|\\d+ml de água|(água|hidrat)/i.test(lowerText)) {\n    return {\n      type: analysisType.WATER_INTAKE,\n      complexity: 'low',\n      estimatedTokens: 800\n    };\n  }\n  \n  if (/(comi|almocei|jantei|lanchei|tomei café)/i.test(lowerText)) {\n    return {\n      type: analysisType.FOOD_REGISTRATION,\n      complexity: 'medium',\n      estimatedTokens: 1500\n    };\n  }\n  \n  if (/^(resumo|como estamos|minhas metas|total de hoje)/i.test(lowerText)) {\n    return {\n      type: analysisType.DAILY_SUMMARY,\n      complexity: 'high',\n      estimatedTokens: 2500\n    };\n  }\n  \n  if (/(relatório|análise completa|feedback|balanço)/i.test(lowerText)) {\n    return {\n      type: analysisType.MEAL_ANALYSIS,\n      complexity: 'high',\n      estimatedTokens: 3000\n    };\n  }\n  \n  if (/(déficit|superávit|meta diária|objetivo)/i.test(lowerText)) {\n    return {\n      type: analysisType.GOAL_TRACKING,\n      complexity: 'medium',\n      estimatedTokens: 1800\n    };\n  }\n  \n  // Default para consultas nutricionais\n  return {\n    type: analysisType.NUTRITION_QUERY,\n    complexity: 'medium',\n    estimatedTokens: 1200\n  };\n}\n\n// Extrair informações nutricionais do texto\nfunction extractNutritionData(text) {\n  const data = {\n    foods: [],\n    quantities: [],\n    units: [],\n    liquids: [],\n    timeOfDay: null,\n    mealType: null\n  };\n  \n  // Extrair alimentos comuns\n  const foodMatches = text.match(/(arroz|feijão|carne|frango|peixe|ovo|pão|leite|queijo|presunto|salada|tomate|alface|batata|macarrão|massa|suco|café|chá|açúcar|sal|óleo|manteiga)/gi);\n  if (foodMatches) {\n    data.foods = [...new Set(foodMatches.map(f => f.toLowerCase()))];\n  }\n  \n  // Extrair quantidades\n  const quantityMatches = text.match(/\\d+\\s*(g|ml|mg|kg|unidade|fatia|colher|xícara|copo|litro)/gi);\n  if (quantityMatches) {\n    data.quantities = quantityMatches;\n  }\n  \n  // Detectar tipo de refeição\n  if (/(café da manhã|manhã)/i.test(text)) data.mealType = 'cafe_manha';\n  else if (/(almoço|meio dia)/i.test(text)) data.mealType = 'almoco';\n  else if (/(lanche|tarde)/i.test(text)) data.mealType = 'lanche';\n  else if (/(jantar|janta|noite)/i.test(text)) data.mealType = 'jantar';\n  \n  // Detectar horário\n  const timeMatch = text.match(/(\\d{1,2}):?(\\d{2})?\\s*(h|hora|horas)?/i);\n  if (timeMatch) {\n    data.timeOfDay = timeMatch[0];\n  }\n  \n  return data;\n}\n\nconst nutritionAnalysis = analyzeNutritionRequest(messageText.messageText, messageData);\nconst extractedData = extractNutritionData(messageText.messageText);\nconst herbalifeDetection = detectHerbalifeProducts(messageText.messageText);\n\nreturn [{\n  json: {\n    queueData: queueData,\n    messageData: messageData,\n    nutritionAnalysis: nutritionAnalysis,\n    extractedData: extractedData,\n    herbalifeDetection: herbalifeDetection,\n    needsHerbalifeSearch: herbalifeDetection.hasHerbalife,\n    startTime: startTime,\n    needsGPTAnalysis: true,\n    normalizedPhone: normalizedPhone,\n    whatsappNumber: normalizedPhone\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        80
+      ],
+      "id": "55efe459-0cf2-4338-a438-b69ad5ad9f1c",
+      "name": "Analyze Nutrition Request"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "users",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "={{ $json.queueData.originalMessage.messageText.userId }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        400,
+        80
+      ],
+      "id": "0f14431e-e346-4f18-b404-48ceca02bc71",
+      "name": "Get User Profile",
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "daily_summary",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "keyValue": "={{ $json.queueData.originalMessage.messageText.userId }}"
+            },
+            {
+              "keyName": "date",
+              "keyValue": "={{ new Date().toISOString().split('T')[0] }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        420,
+        500
+      ],
+      "id": "cabeabf3-d050-43cb-8995-da9703cd22c5",
+      "name": "Get Daily Summary",
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combinar dados do usuário e resumo diário\nconst foundHerbalifeProducts = $('Search Herbalife Products')?.first()?.json?.found_products || [];\nconst nutritionData = $input.first().json;\nconst userProfile = $('Get User Profile').first()?.json || null;\nconst dailySummary = $('Get Daily Summary').first()?.json || null;\n\n\n// Dados padrão para resumo diário\nconst defaultDailySummary = {\n  total_calories: 0,\n  total_protein: 0,\n  total_carbs: 0,\n  total_fat: 0,\n  total_water: 0,\n  total_fiber: 0\n};\n\nconst profile = userProfile || defaultProfile;\nconst dailyData = dailySummary || defaultDailySummary;\n\n// Função para formatar produtos Herbalife\nfunction formatHerbalifeResponse(products, quantities = []) {\n  if (!products || products.length === 0) {\n    return null;\n  }\n  \n  let response = \"🌿 **Produtos Herbalife Identificados:**\\n\\n\";\n  let totalNutrition = {\n    calorias: 0,\n    proteinas: 0,\n    carboidratos: 0,\n    gorduras: 0,\n    fibras: 0\n  };\n  \n  products.forEach((product, index) => {\n    let multiplier = 1;\n    if (quantities.length > index && quantities[index]) {\n      const userQty = quantities[index].value;\n      const standardQty = parseFloat(product.porcao.match(/(\\d+(?:\\.\\d+)?)/)?.[1] || 1);\n      if (standardQty > 0) {\n        multiplier = userQty / standardQty;\n      }\n    }\n    \n    const calories = Math.round(product.calorias_kcal * multiplier);\n    const protein = Math.round(product.proteinas_g * multiplier * 10) / 10;\n    const carbs = Math.round(product.carboidratos_g * multiplier * 10) / 10;\n    const fat = Math.round(product.gorduras_totais_g * multiplier * 10) / 10;\n    const fiber = Math.round(product.fibras_g * multiplier * 10) / 10;\n    \n    response += `**${index + 1}. ${product.produto}**\\n`;\n    response += `📏 Porção padrão: ${product.porcao}`;\n    if (multiplier !== 1) {\n      response += ` (você consumiu: ${multiplier.toFixed(1)}x)`;\n    }\n    response += `\\n`;\n    response += `🔥 ${calories} kcal | 🥩 ${protein}g prot | 🍞 ${carbs}g carb | 🥑 ${fat}g gord | 🌾 ${fiber}g fibra\\n\\n`;\n    \n    totalNutrition.calorias += calories;\n    totalNutrition.proteinas += protein;\n    totalNutrition.carboidratos += carbs;\n    totalNutrition.gorduras += fat;\n    totalNutrition.fibras += fiber;\n  });\n  \n  if (products.length > 1) {\n    response += `**📊 TOTAL:**\\n`;\n    response += `🔥 ${Math.round(totalNutrition.calorias)} kcal | `;\n    response += `🥩 ${Math.round(totalNutrition.proteinas * 10) / 10}g prot | `;\n    response += `🍞 ${Math.round(totalNutrition.carboidratos * 10) / 10}g carb | `;\n    response += `🥑 ${Math.round(totalNutrition.gorduras * 10) / 10}g gord | `;\n    response += `🌾 ${Math.round(totalNutrition.fibras * 10) / 10}g fibra\\n\\n`;\n  }\n  \n  return {\n    response: response,\n    nutrition: totalNutrition,\n    hasHerbalifeData: true\n  };\n}\n\n// Construir prompt para GPT-4o baseado no tipo de análise\nfunction buildNutritionPrompt(analysisType, extractedData, profile, dailyData, messageText, foundHerbalifeProducts, herbalifeDetection) {\n  let baseContext = `\nVocê é o Dieta Fácil, um assistente nutricional especializado.\n\n👤 **PERFIL DO USUÁRIO:**\n• Nome: ${profile.name}\n• Idade: ${profile.age} anos\n• Peso: ${profile.weight}kg\n• Altura: ${profile.height}cm\n• Sexo: ${profile.gender}\n• Atividade: ${profile.activity_level}\n• Objetivo: ${profile.goal}\n\n🎯 **METAS DIÁRIAS:**\n• 🔥 Calorias: ${profile.daily_calorie_target || profile.target_calories || 2000}kcal\n• 🥩 Proteínas: ${profile.target_protein}g\n• 🍞 Carboidratos: ${profile.target_carbs}g\n• 🥑 Gorduras: ${profile.target_fat}g\n• 💧 Água: ${profile.target_water}ml\n• 🌾 Fibras: ${profile.target_fiber}g\n\n📊 **CONSUMO ATUAL HOJE:**\n\n🔥 **Calorias:** ${dailyData.total_calories}kcal (${Math.round((dailyData.total_calories/(profile.daily_calorie_target || 2000))*100)}% da meta)\n${generateProgressBar(dailyData.total_calories, profile.daily_calorie_target || 2000)}\n\n🥩 **Proteínas:** ${dailyData.total_protein}g (${Math.round((dailyData.total_protein/profile.target_protein)*100)}% da meta)\n${generateProgressBar(dailyData.total_protein, profile.target_protein)}\n\n🍞 **Carboidratos:** ${dailyData.total_carbs}g (${Math.round((dailyData.total_carbs/profile.target_carbs)*100)}% da meta)\n${generateProgressBar(dailyData.total_carbs, profile.target_carbs)}\n\n🥑 **Gorduras:** ${dailyData.total_fat}g (${Math.round((dailyData.total_fat/profile.target_fat)*100)}% da meta)\n${generateProgressBar(dailyData.total_fat, profile.target_fat)}\n\n💧 **Água:** ${dailyData.total_water}ml (${Math.round((dailyData.total_water/profile.target_water)*100)}% da meta)\n${generateProgressBar(dailyData.total_water, profile.target_water)}\n\n🌾 **Fibras:** ${dailyData.total_fiber}g (${Math.round((dailyData.total_fiber/profile.target_fiber)*100)}% da meta)\n${generateProgressBar(dailyData.total_fiber, profile.target_fiber)}\n`;\n\n  // Função para gerar barra de progresso visual\n  function generateProgressBar(current, target) {\n    const percentage = Math.min(Math.round((current / target) * 100), 100);\n    const filledBars = Math.round(percentage / 10);\n    const emptyBars = 10 - filledBars;\n    \n    let bar = \"▓\".repeat(filledBars) + \"░\".repeat(emptyBars);\n    let status = \"\";\n    \n    if (percentage < 30) status = \"🔴 Baixo\";\n    else if (percentage < 70) status = \"🟡 Médio\";\n    else if (percentage < 90) status = \"🟢 Bom\";\n    else if (percentage <= 110) status = \"✅ Ideal\";\n    else status = \"🔵 Acima\";\n    \n    return `[${bar}] ${status}`;\n  }\n\n  // PROCESSAR DADOS HERBALIFE SE DETECTADOS\n  let herbalifeData = null;\n  let herbalifeNutrition = null;\n  \n  if (foundHerbalifeProducts && foundHerbalifeProducts.length > 0) {\n    herbalifeData = formatHerbalifeResponse(foundHerbalifeProducts, herbalifeDetection?.quantities || []);\n    herbalifeNutrition = herbalifeData.nutrition;\n    \n    baseContext += `\\n\\n🌿 **PRODUTOS HERBALIFE DETECTADOS:**\\n`;\n    baseContext += herbalifeData.response;\n    baseContext += `\\n✅ **IMPORTANTE:** Os dados nutricionais dos produtos Herbalife acima são PRECISOS e baseados na tabela oficial. Use esses valores exatos como base e analise outros alimentos mencionados separadamente.\\n`;\n  }\n\n  switch(analysisType.type) {\n    case 'registro_alimento':\n      let registroPrompt = baseContext + `\n📝 **SOLICITAÇÃO:** O usuário quer registrar o seguinte alimento/refeição:\n\"${messageText}\"\n\n🔍 **ANÁLISE DETECTADA:**\n• Alimentos: ${extractedData.foods.join(', ') || 'A identificar'}\n• Quantidades: ${extractedData.quantities.join(', ') || 'A calcular'}\n• Refeição: ${extractedData.mealType || 'não especificado'}\n\n📋 **SUAS TAREFAS:**\n1. ${herbalifeData ? '✅ CONFIRME os dados Herbalife fornecidos (já calculados com precisão)' : '🧮 Calcule as calorias e macronutrientes dos alimentos mencionados'}\n2. ${herbalifeData ? '🔍 Analise OUTROS alimentos mencionados além dos produtos Herbalife' : '🔍 Analise todos os alimentos mencionados'}\n3. 📊 Forneça feedback sobre o progresso das metas\n4. 💡 Dê sugestões para otimizar a próxima refeição\n5. 💾 Retorne os dados em formato JSON para registro\n\n📱 **FORMATO DE RESPOSTA:**\n• Use emojis e formatação limpa\n• Evite tabelas - use listas organizadas\n• Seja visual e fácil de ler no celular\n• Destaque informações importantes com **negrito**\n\n\\`\\`\\`json\n{\n  \"meal_data\": {\n    \"meal_type\": \"cafe_manha|almoco|lanche|jantar\",`;\n\n      // Se tem dados Herbalife, usar os valores calculados\n      if (herbalifeNutrition) {\n        registroPrompt += `\n    \"calories\": ${Math.round(herbalifeNutrition.calorias)},\n    \"protein\": ${Math.round(herbalifeNutrition.proteinas * 10) / 10},\n    \"carbs\": ${Math.round(herbalifeNutrition.carboidratos * 10) / 10},\n    \"fat\": ${Math.round(herbalifeNutrition.gorduras * 10) / 10},\n    \"fiber\": ${Math.round(herbalifeNutrition.fibras * 10) / 10},`;\n      } else {\n        registroPrompt += `\n    \"calories\": 0,\n    \"protein\": 0,\n    \"carbs\": 0,\n    \"fat\": 0,\n    \"fiber\": 0,`;\n      }\n\n      registroPrompt += `\n    \"food_items\": [`;\n\n      // Adicionar itens Herbalife se detectados\n      if (foundHerbalifeProducts && foundHerbalifeProducts.length > 0) {\n        foundHerbalifeProducts.forEach((product, index) => {\n          let multiplier = 1;\n          if (herbalifeDetection?.quantities && herbalifeDetection.quantities[index]) {\n            const userQty = herbalifeDetection.quantities[index].value;\n            const standardQty = parseFloat(product.porcao.match(/(\\d+(?:\\.\\d+)?)/)?.[1] || 1);\n            if (standardQty > 0) {\n              multiplier = userQty / standardQty;\n            }\n          }\n\n          const calories = Math.round(product.calorias_kcal * multiplier);\n          const protein = Math.round(product.proteinas_g * multiplier * 10) / 10;\n          const carbs = Math.round(product.carboidratos_g * multiplier * 10) / 10;\n          const fat = Math.round(product.gorduras_totais_g * multiplier * 10) / 10;\n          const fiber = Math.round(product.fibras_g * multiplier * 10) / 10;\n\n          registroPrompt += `\n      {\n        \"name\": \"${product.produto}\",\n        \"quantity\": \"${product.porcao}${multiplier !== 1 ? ` (${multiplier.toFixed(1)}x)` : ''}\",\n        \"emoji\": \"🌿\",\n        \"calories\": ${calories},\n        \"protein\": ${protein},\n        \"carbs\": ${carbs},\n        \"fat\": ${fat},\n        \"fiber\": ${fiber}\n      }${index < foundHerbalifeProducts.length - 1 ? ',' : ''}`;\n        });\n        \n        // Se há outros alimentos além do Herbalife\n        if (extractedData.foods.length > 0) {\n          registroPrompt += `,\n      {\n        \"name\": \"outros alimentos mencionados\",\n        \"quantity\": \"conforme descrito\",\n        \"emoji\": \"🍽️\",\n        \"calories\": 0,\n        \"protein\": 0,\n        \"carbs\": 0,\n        \"fat\": 0,\n        \"fiber\": 0\n      }`;\n        }\n      } else {\n        // Sem produtos Herbalife - formato padrão\n        registroPrompt += `\n      {\n        \"name\": \"nome do alimento\",\n        \"quantity\": \"quantidade\",\n        \"emoji\": \"🍎\",\n        \"calories\": 0,\n        \"protein\": 0,\n        \"carbs\": 0,\n        \"fat\": 0,\n        \"fiber\": 0\n      }`;\n      }\n\n      registroPrompt += `\n    ]\n  }\n}\n\\`\\`\\`\n\n💬 **RESPONDA de forma amigável e motivadora, usando:**\n• ✅ Emojis apropriados\n• 📱 Formatação mobile-friendly (sem tabelas)\n• 🎯 Foco no progresso das metas\n• 💪 Tom motivacional\n${herbalifeData ? '\\n🌿 **DESTAQUE** que os produtos Herbalife foram identificados automaticamente com dados oficiais.' : ''}`;\n      \n      return registroPrompt;\n      \n    case 'consumo_agua':\n      const waterAmount = messageText.match(/\\d+/)?.[0] || '0';\n      return baseContext + `\n💧 **SOLICITAÇÃO:** O usuário bebeu ${waterAmount}ml de água.\n\n📋 **SUAS TAREFAS:**\n1. ➕ Some ${waterAmount}ml ao consumo de água atual\n2. 📊 Calcule a porcentagem da meta diária atingida\n3. 🎉 Parabenize o progresso ou incentive a beber mais\n4. 💡 Dê dicas sobre hidratação\n5. 💾 Retorne os dados em formato JSON\n\n\\`\\`\\`json\n{\n  \"water_intake\": {\n    \"amount\": ${waterAmount},\n    \"total_today\": ${dailyData.total_water + parseInt(waterAmount)}\n  }\n}\n\\`\\`\\`\n\n💬 **RESPONDA de forma encorajadora com:**\n• 💧 Emojis de água\n• 📱 Formatação limpa para mobile\n• 🎯 Progresso da meta de hidratação\n• 💪 Motivação para continuar`;\n      \n    case 'resumo_diario':\n      return baseContext + `\n📊 **SOLICITAÇÃO:** O usuário quer ver o resumo do dia.\n\n📋 **SUAS TAREFAS:**\n1. 📈 Apresente um resumo completo do consumo atual vs metas\n2. 🧮 Calcule calorias restantes para o dia\n3. 🍽️ Sugira o que comer nas próximas refeições\n4. 🎯 Avalie se está no caminho certo para o objetivo\n5. 💪 Dê motivação baseada no progresso\n\n💬 **RESPONDA com:**\n• 📱 Relatório visual mobile-friendly (SEM TABELAS)\n• ✅ Emojis para cada nutriente\n• 📊 Barras de progresso visuais [▓▓▓░░░]\n• 🎯 Análise clara do progresso\n• 💡 Sugestões práticas\n• 💪 Tom motivacional`;\n      \n    default:\n      return baseContext + `\n❓ **SOLICITAÇÃO:** \"${messageText}\"\n\n${herbalifeData ? '🌿 **IMPORTANTE:** Produtos Herbalife foram detectados e seus dados nutricionais estão incluídos acima. Use essas informações em sua resposta.' : ''}\n\n📋 **SUAS TAREFAS:**\n• 🔍 Analise a solicitação\n• 💬 Responda de forma útil e personalizada\n• 📱 Use formatação mobile-friendly\n• ✅ Inclua emojis apropriados\n• 🎯 Foque nas necessidades do usuário`;\n  }\n}\n\n// MODIFICAR A CHAMADA DA FUNÇÃO:\nconst gptPrompt = buildNutritionPrompt(\n  $('Analyze Nutrition Request').first().json.nutritionAnalysis,\n  $('Analyze Nutrition Request').first().json.extractedData,\n  profile,\n  dailyData,\n  $('Analyze Nutrition Request').first().json.messageData.messageText.messageText,\n  foundHerbalifeProducts,\n  $('Analyze Nutrition Request').first().json.herbalifeDetection\n);\n\nreturn [{\n  json: {\n    ...nutritionData,\n    userProfile: profile,\n    dailySummary: dailyData,\n    foundHerbalifeProducts: foundHerbalifeProducts,\n    herbalifeDetection: $('Analyze Nutrition Request').first().json.herbalifeDetection,\n    gptPrompt: gptPrompt,\n    isNewUser: !userProfile,\n    userId: profile.id\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        80
+      ],
+      "id": "5c4e32dd-c2e5-4b60-b836-b516be15c9aa",
+      "name": "Prepare GPT Prompt"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Processar resposta do GPT e extrair dados estruturados\nconst gptResponse = $input.first().json.output;\nconst nutritionData = $('Prepare GPT Prompt').first().json;\n\n// Tentar extrair JSON da resposta (se houver)\nlet structuredData = null;\ntry {\n  const jsonMatch = gptResponse.match(/```json\\s*([\\s\\S]*?)\\s*```/);\n  if (jsonMatch) {\n    structuredData = JSON.parse(jsonMatch[1]);\n  }\n} catch (error) {\n  console.log('Nenhum JSON estruturado encontrado na resposta');\n}\n\n// Preparar resposta limpa para o usuário (remover JSON se houver)\nconst cleanResponse = gptResponse.replace(/```json[\\s\\S]*?```/g, '').trim();\n\n// Calcular tokens usados (estimativa)\nconst tokensUsed = Math.ceil((nutritionData.gptPrompt.length + gptResponse.length) / 4);\n\n// Determinar se precisa salvar dados no banco\nconst needsDbUpdate = structuredData && (structuredData.meal_data || structuredData.water_intake);\n\nreturn [{\n  json: {\n    ...nutritionData,\n    gptResponse: cleanResponse,\n    structuredData: structuredData,\n    tokensUsed: tokensUsed,\n    needsDbUpdate: needsDbUpdate\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1660,
+        80
+      ],
+      "id": "c574e219-9c0d-48f4-894f-df8f53060a70",
+      "name": "Process GPT Response"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "Dieta Facil Dev",
+        "remoteJid": "={{ $('Get User Profile').last().json.whatsapp }}",
+        "messageText": "={{ $json.gptResponse }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        1880,
+        -120
+      ],
+      "id": "d5a204e0-1379-45e0-b56b-f05aaf6d207d",
+      "name": "Send Nutrition Response",
+      "credentials": {
+        "evolutionApi": {
+          "id": "8Vyn5rMuwjwiaAUs",
+          "name": "Instancia Dev"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "3c4861c3-073c-40a3-a75a-10a59af9aaea",
+              "leftValue": "={{ $json.structuredData?.meal_data ? true : false }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1860,
+        240
+      ],
+      "id": "dbbf9e6c-2abf-4a07-b87f-7c24a0493b58",
+      "name": "Check Needs DB Update"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "8138cb4d-4ffd-4531-88bb-47d5b239f056",
+              "leftValue": "={{ $json.structuredData?.meal_data ? true : false }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2080,
+        220
+      ],
+      "id": "24a75a70-f001-4da8-8db7-e8907f5793f1",
+      "name": "Check Meal Data"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "32be1c0d-d831-4512-b57f-00554083446f",
+              "leftValue": "={{ $json.structuredData?.water_intake ? true : false }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        520
+      ],
+      "id": "258107b7-9aa0-4569-97b3-9cba5ff60666",
+      "name": "Check Water Intake"
+    },
+    {
+      "parameters": {
+        "tableId": "meals",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "diary_day_id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldId": "meal_type_id",
+              "fieldValue": "={{ \n$('Check Meal Data').item.json.structuredData.meal_data.meal_type === 'cafe_manha' ? 1 : \n$('Check Meal Data').item.json.structuredData.meal_data.meal_type === 'almoco' ? 2 : \n$('Check Meal Data').item.json.structuredData.meal_data.meal_type === 'jantar' ? 3 : 4 \n}}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2440,
+        200
+      ],
+      "id": "da1b31e8-7d0a-4bb4-ba1b-41bd04980672",
+      "name": "Create Meal",
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Criar food_items para a refeição\nconst mealData = $input.first().json;\nconst mealId = $('Create Meal').first().json.id;\nconst foodItems = $('Check Meal Data').first().json.structuredData.meal_data.food_items || [];\n\n// Preparar dados para inserção em lote\nconst foodItemsToInsert = foodItems.map(item => ({\n  meal_id: mealId,\n  name: item.name,\n  quantity: item.quantity,\n  emoji: item.emoji || '🍽️',\n  protein: item.protein || 0,\n  carbs: item.carbs || 0,\n  fat: item.fat || 0,\n  fiber: item.fiber || 0,\n  calories: item.calories || 0\n}));\n\nreturn foodItemsToInsert.map(item => ({ json: item }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2660,
+        80
+      ],
+      "id": "8deba37e-5f46-4f8f-981a-24d0292e23a2",
+      "name": "Prepare Food Items"
+    },
+    {
+      "parameters": {
+        "tableId": "food_items",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "meal_id",
+              "fieldValue": "={{ $json.meal_id }}"
+            },
+            {
+              "fieldId": "name",
+              "fieldValue": "={{ $json.name }}"
+            },
+            {
+              "fieldId": "quantity",
+              "fieldValue": "={{ $json.quantity }}"
+            },
+            {
+              "fieldId": "emoji",
+              "fieldValue": "={{ $json.emoji }}"
+            },
+            {
+              "fieldId": "protein",
+              "fieldValue": "={{ $json.protein }}"
+            },
+            {
+              "fieldId": "carbs",
+              "fieldValue": "={{ $json.carbs }}"
+            },
+            {
+              "fieldId": "fat",
+              "fieldValue": "={{ $json.fat }}"
+            },
+            {
+              "fieldId": "fiber",
+              "fieldValue": "={{ $json.fiber }}"
+            },
+            {
+              "fieldId": "calories",
+              "fieldValue": "={{ $json.calories }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2860,
+        80
+      ],
+      "id": "7f5bb51b-2a9b-4c95-adc6-2e20569dc42c",
+      "name": "Create Food Items",
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "incr",
+        "key": "metrics:nutrition:completed"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        3260,
+        120
+      ],
+      "id": "24e67ec3-b2fd-4730-98a3-a2074f0c181e",
+      "name": "Increment Completed Metric",
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pop",
+        "list": "queue:nutrition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -140,
+        80
+      ],
+      "id": "05d151c1-5584-40ba-add6-5051601d683f",
+      "name": "Pop Nutrition Queue",
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        840,
+        80
+      ],
+      "id": "d7d0f9a7-bbb2-416e-afb8-eb59440fc91d",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "chatgpt-4o-latest",
+          "mode": "list",
+          "cachedResultName": "chatgpt-4o-latest"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1220,
+        380
+      ],
+      "id": "47390e2f-02fb-4326-9717-1c7bfc32c7fc",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "hDbVS33gRemwNAep",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Pop Nutrition Queue').item.json.propertyName.originalMessage.userId }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        1160,
+        620
+      ],
+      "id": "7a9a5f55-94b8-4bea-baf8-edea190ec6bf",
+      "name": "Postgres Chat Memory",
+      "credentials": {
+        "postgres": {
+          "id": "m8W5D6Ml6jkdbYon",
+          "name": "Postgres account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.gptPrompt }}",
+        "options": {
+          "systemMessage": "=Você é o Dieta Fácil, um assistente nutricional especializado, amigável e motivador. Sempre responda em português brasileiro, use emojis apropriados e seja preciso com cálculos nutricionais. Quando necessário, retorne dados estruturados em JSON para atualização do banco de dados."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        1280,
+        80
+      ],
+      "id": "14ea704c-024e-453b-9c85-59d0dfa6de07",
+      "name": "GPT Nutrition Analysis"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM public.diary_days WHERE id =( SELECT get_or_create_diary_day('{{ $json.userId }}') as diary_day_id)",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2260,
+        120
+      ],
+      "id": "e4bde547-3aad-4a94-9ace-d3dfeb92b46b",
+      "name": "LoadOrCreateDiaryDay",
+      "credentials": {
+        "postgres": {
+          "id": "m8W5D6Ml6jkdbYon",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2900,
+        -740
+      ],
+      "id": "ae3fdb9d-a404-4939-babe-a1cc7cd5bdf3",
+      "name": "Create Classification Log OLD",
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "tableId": "message_classifications",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "phone_number",
+              "fieldValue": "={{ $('Analyze Nutrition Request').last().json.queueData.originalMessage.phoneNumber }}"
+            },
+            {
+              "fieldId": "message_text",
+              "fieldValue": "={{ $('Analyze Nutrition Request').last().json.queueData.originalMessage.messageText }}"
+            },
+            {
+              "fieldId": "classification_type",
+              "fieldValue": "={{ $('Analyze Nutrition Request').last().json.queueData.classification.type }}"
+            },
+            {
+              "fieldId": "confidence",
+              "fieldValue": "={{ $('Analyze Nutrition Request').last().json.queueData.classification.confidence }}"
+            },
+            {
+              "fieldId": "estimated_tokens",
+              "fieldValue": "={{ $('Analyze Nutrition Request').last().json.queueData.routing.estimatedTokens }}"
+            },
+            {
+              "fieldId": "queue_name",
+              "fieldValue": "={{ $('Analyze Nutrition Request').last().json.queueData.routing.queue }}"
+            },
+            {
+              "fieldId": "model_assigned",
+              "fieldValue": "={{ $('Analyze Nutrition Request').last().json.queueData.routing.model }}"
+            },
+            {
+              "fieldId": "analysis_data",
+              "fieldValue": "={{ $('Analyze Nutrition Request').last().json.queueData.analysis }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3260,
+        -80
+      ],
+      "id": "81ac215c-b32f-48f8-8941-ac97a9c36ae2",
+      "name": "Create Classification Log",
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "daily_summary",
+          "mode": "list",
+          "cachedResultName": "daily_summary"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "total_protein": "={{ \n($('Check Needs DB Update').last().json.dailySummary.total_protein || 0) + \n($('Check Needs DB Update').last().json.structuredData?.meal_data?.protein || 0)\n}}",
+            "total_carbs": "={{ ($('Check Needs DB Update').last().json.dailySummary.total_carbs || 0) + ($('Check Needs DB Update').last().json.structuredData?.meal_data?.carbs || 0) }}",
+            "total_fat": "={{ ($('Check Needs DB Update').last().json.dailySummary.total_fat || 0) + ($('Check Needs DB Update').last().json.structuredData?.meal_data?.fat || 0) }}",
+            "total_fiber": "={{ ($('Check Needs DB Update').last().json.dailySummary.total_fiber || 0) + ($('Check Needs DB Update').last().json.structuredData?.meal_data?.fiber || 0) }}",
+            "total_calories": "={{ ($('Check Needs DB Update').last().json.dailySummary.total_calories || 0) + ($('Check Needs DB Update').last().json.structuredData?.meal_data?.calories || 0) }}",
+            "total_water": "={{ ($('Check Needs DB Update').last().json.dailySummary.total_water || 0) + ($('Check Needs DB Update').last().json.structuredData?.water_intake?.amount || 0) }}",
+            "target_protein": "={{ $('Check Needs DB Update').last().json.userProfile.target_protein }}",
+            "target_carbs": "={{ $('Check Needs DB Update').last().json.userProfile.target_carbs }}",
+            "target_fat": "={{ $('Check Needs DB Update').last().json.userProfile.target_fat }}",
+            "target_fiber": "={{ $('Check Needs DB Update').last().json.userProfile.target_fiber }}",
+            "target_water": "={{ $('Check Needs DB Update').last().json.userProfile.target_water }}",
+            "user_id": "={{ $('Pop Nutrition Queue').last().json.propertyName.originalMessage.userId }}",
+            "diary_day_id": "={{ $json.diary_day_id }}",
+            "date": "={{ new Date().toISOString().split('T')[0] }}"
+          },
+          "matchingColumns": [
+            "diary_day_id",
+            "user_id"
+          ],
+          "schema": [
+            {
+              "id": "diary_day_id",
+              "displayName": "diary_day_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "user_id",
+              "displayName": "user_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total_protein",
+              "displayName": "total_protein",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total_carbs",
+              "displayName": "total_carbs",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total_fat",
+              "displayName": "total_fat",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total_fiber",
+              "displayName": "total_fiber",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total_calories",
+              "displayName": "total_calories",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total_water",
+              "displayName": "total_water",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "calorie_deficit",
+              "displayName": "calorie_deficit",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "target_protein",
+              "displayName": "target_protein",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "target_carbs",
+              "displayName": "target_carbs",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "target_fat",
+              "displayName": "target_fat",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "target_fiber",
+              "displayName": "target_fiber",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "target_water",
+              "displayName": "target_water",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "basal_metabolic_rate",
+              "displayName": "basal_metabolic_rate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "protein_difference",
+              "displayName": "protein_difference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "carbs_difference",
+              "displayName": "carbs_difference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "fat_difference",
+              "displayName": "fat_difference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "fiber_difference",
+              "displayName": "fiber_difference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "water_difference",
+              "displayName": "water_difference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2800,
+        820
+      ],
+      "id": "da6ae0b6-c889-4b51-903b-2a2b37fbe69c",
+      "name": "Update Daily Summary",
+      "credentials": {
+        "postgres": {
+          "id": "m8W5D6Ml6jkdbYon",
+          "name": "Postgres account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=chat_{{ $json.userId }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        1380,
+        380
+      ],
+      "id": "8c30b15e-2dd6-4da4-8274-10509953235e",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        2800,
+        280
+      ],
+      "id": "ed0ad561-5c89-490b-8abb-9081844997db",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "daily_summary",
+          "mode": "list",
+          "cachedResultName": "daily_summary"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "total_protein": "={{ \n($('Check Needs DB Update').last().json.dailySummary.total_protein || 0) + \n($('Check Needs DB Update').last().json.structuredData?.meal_data?.protein || 0)\n}}",
+            "total_carbs": "={{ ($('Check Needs DB Update').last().json.dailySummary.total_carbs || 0) + ($('Check Needs DB Update').last().json.structuredData?.meal_data?.carbs || 0) }}",
+            "total_fat": "={{ ($('Check Needs DB Update').last().json.dailySummary.total_fat || 0) + ($('Check Needs DB Update').last().json.structuredData?.meal_data?.fat || 0) }}",
+            "total_fiber": "={{ ($('Check Needs DB Update').last().json.dailySummary.total_fiber || 0) + ($('Check Needs DB Update').last().json.structuredData?.meal_data?.fiber || 0) }}",
+            "total_calories": "={{ ($('Check Needs DB Update').last().json.dailySummary.total_calories || 0) + ($('Check Needs DB Update').last().json.structuredData?.meal_data?.calories || 0) }}",
+            "total_water": "={{ ($('Check Needs DB Update').last().json.dailySummary.total_water || 0) + ($('Check Needs DB Update').last().json.structuredData?.water_intake?.amount || 0) }}",
+            "target_protein": "={{ $('Check Needs DB Update').last().json.userProfile.target_protein }}",
+            "target_carbs": "={{ $('Check Needs DB Update').last().json.userProfile.target_carbs }}",
+            "target_fat": "={{ $('Check Needs DB Update').last().json.userProfile.target_fat }}",
+            "target_fiber": "={{ $('Check Needs DB Update').last().json.userProfile.target_fiber }}",
+            "target_water": "={{ $('Check Needs DB Update').last().json.userProfile.target_water }}",
+            "user_id": "={{ $('Pop Nutrition Queue').last().json.propertyName.originalMessage.userId }}",
+            "date": "={{ new Date().toISOString().split('T')[0] }}",
+            "diary_day_id": "={{ $json.diary_day_id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "diary_day_id",
+              "displayName": "diary_day_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "user_id",
+              "displayName": "user_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "total_protein",
+              "displayName": "total_protein",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "total_carbs",
+              "displayName": "total_carbs",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "total_fat",
+              "displayName": "total_fat",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "total_fiber",
+              "displayName": "total_fiber",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "total_calories",
+              "displayName": "total_calories",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "total_water",
+              "displayName": "total_water",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "calorie_deficit",
+              "displayName": "calorie_deficit",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "target_protein",
+              "displayName": "target_protein",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "target_carbs",
+              "displayName": "target_carbs",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "target_fat",
+              "displayName": "target_fat",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "target_fiber",
+              "displayName": "target_fiber",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "target_water",
+              "displayName": "target_water",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "basal_metabolic_rate",
+              "displayName": "basal_metabolic_rate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "protein_difference",
+              "displayName": "protein_difference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "carbs_difference",
+              "displayName": "carbs_difference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "fat_difference",
+              "displayName": "fat_difference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "fiber_difference",
+              "displayName": "fiber_difference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "water_difference",
+              "displayName": "water_difference",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2780,
+        600
+      ],
+      "id": "84bfaaca-e5d2-40c9-a13e-322bb1e7275a",
+      "name": "Update Daily Summary1",
+      "credentials": {
+        "postgres": {
+          "id": "m8W5D6Ml6jkdbYon",
+          "name": "Postgres account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 15
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -320,
+        80
+      ],
+      "id": "18bae7e5-c5a0-4bbf-bd74-bad76d49cafa",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH search_results AS (\n  SELECT \n    produto,\n    porcao,\n    calorias_kcal,\n    proteinas_g,\n    carboidratos_g,\n    gorduras_totais_g,\n    fibras_g,\n    similarity(lower(produto), lower('{{ $json.herbalifeDetection.searchTerms[0] }}')) as similarity_score\n  FROM herbalife_products\n  WHERE \n    similarity(lower(produto), lower('{{ $json.herbalifeDetection.searchTerms[0] }}')) > 0.3\n    OR lower(produto) LIKE '%{{ $json.herbalifeDetection.searchTerms[0] | lower }}%'\n    OR to_tsvector('portuguese', produto) @@ plainto_tsquery('portuguese', '{{ $json.herbalifeDetection.searchTerms[0] }}')\n),\nranked_results AS (\n  SELECT DISTINCT\n    produto,\n    porcao,\n    calorias_kcal,\n    proteinas_g,\n    carboidratos_g,\n    gorduras_totais_g,\n    fibras_g,\n    MAX(similarity_score) as max_similarity\n  FROM search_results\n  GROUP BY produto, porcao, calorias_kcal, proteinas_g, carboidratos_g, gorduras_totais_g, fibras_g\n  ORDER BY max_similarity DESC\n  LIMIT 5\n)\nSELECT \n  json_agg(\n    json_build_object(\n      'produto', produto,\n      'porcao', porcao,\n      'calorias_kcal', calorias_kcal,\n      'proteinas_g', proteinas_g,\n      'carboidratos_g', carboidratos_g,\n      'gorduras_totais_g', gorduras_totais_g,\n      'fibras_g', fibras_g,\n      'similarity', max_similarity\n    ) ORDER BY max_similarity DESC\n  ) as found_products\nFROM ranked_results;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        420,
+        280
+      ],
+      "id": "c1b0df8c-0656-4e89-9c5f-b259e670b79e",
+      "name": "Search Herbalife Products",
+      "credentials": {
+        "postgres": {
+          "id": "m8W5D6Ml6jkdbYon",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Analyze Nutrition Request": {
+      "main": [
+        [
+          {
+            "node": "Get User Profile",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Daily Summary",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Search Herbalife Products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Profile": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Daily Summary": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Prepare GPT Prompt": {
+      "main": [
+        [
+          {
+            "node": "GPT Nutrition Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process GPT Response": {
+      "main": [
+        [
+          {
+            "node": "Send Nutrition Response",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Needs DB Update",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create Classification Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Needs DB Update": {
+      "main": [
+        [
+          {
+            "node": "Check Meal Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Water Intake",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Meal Data": {
+      "main": [
+        [
+          {
+            "node": "LoadOrCreateDiaryDay",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Water Intake": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Create Meal": {
+      "main": [
+        [
+          {
+            "node": "Prepare Food Items",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Food Items": {
+      "main": [
+        [
+          {
+            "node": "Create Food Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Food Items": {
+      "main": [
+        [
+          {
+            "node": "Create Classification Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pop Nutrition Queue": {
+      "main": [
+        [
+          {
+            "node": "Analyze Nutrition Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Prepare GPT Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "GPT Nutrition Analysis",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        []
+      ]
+    },
+    "GPT Nutrition Analysis": {
+      "main": [
+        [
+          {
+            "node": "Process GPT Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LoadOrCreateDiaryDay": {
+      "main": [
+        [
+          {
+            "node": "Create Meal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Classification Log OLD": {
+      "main": [
+        []
+      ]
+    },
+    "Create Classification Log": {
+      "main": [
+        [
+          {
+            "node": "Increment Completed Metric",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Daily Summary": {
+      "main": [
+        []
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "GPT Nutrition Analysis",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Create Classification Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Pop Nutrition Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Herbalife Products": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": {
+    "node:Schedule Trigger": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {
+    "Pop Nutrition Queue": [
+      {
+        "json": {
+          "propertyName": {
+            "originalMessage": {
+              "phoneNumber": "558596122854@s.whatsapp.net",
+              "messageType": "conversation",
+              "imageCaption": "",
+              "pushName": "Gustavo Gadelha",
+              "messageText": {
+                "phoneNumber": "558596122854@s.whatsapp.net",
+                "messageType": "conversation",
+                "messageText": "Tomei meu shake herbalife baunilha 26g",
+                "imageCaption": "",
+                "hasAudio": false,
+                "hasImage": false,
+                "timestamp": 1749162637,
+                "pushName": "Gustavo Gadelha",
+                "userId": "4bfedbbf-380b-4109-90bf-74519c5fe47f"
+              }
+            },
+            "classification": {
+              "type": "NUTRITION",
+              "confidence": 0.9,
+              "reasoning": {
+                "textLength": 42,
+                "wordCount": 8,
+                "hasNumbers": true,
+                "hasUnits": true,
+                "classification": "NUTRITION"
+              }
+            },
+            "routing": {
+              "queue": "queue:nutrition",
+              "model": "gpt-4o",
+              "priority": 3,
+              "timeout": 30000,
+              "maxRetries": 5,
+              "estimatedTokens": 2000
+            },
+            "analysis": {
+              "messageLength": 42,
+              "wordCount": 8,
+              "specialFlags": {
+                "isGreeting": false,
+                "isThankYou": false,
+                "isQuestion": false,
+                "hasNumbers": true,
+                "isList": false
+              },
+              "processingTime": "2025-06-05T22:30:37.796Z"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "versionId": "11157fb2-c16f-44c9-9821-dabbeea65e2f",
+  "triggerCount": 1,
+  "tags": []
+}
