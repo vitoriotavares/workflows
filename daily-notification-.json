@@ -1,0 +1,269 @@
+{
+  "createdAt": "2025-06-03T23:46:43.278Z",
+  "updatedAt": "2025-06-03T23:46:43.278Z",
+  "id": "SUAEb6ll6s6D8S94",
+  "name": "Daily Notification",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        -100
+      ],
+      "id": "3209189c-30c5-495d-910f-ab988a3dd05d",
+      "name": "Daily Trigger 19h"
+    },
+    {
+      "parameters": {
+        "operation": "select"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        180,
+        -100
+      ],
+      "id": "7a8f0cd2-d5ba-4288-8ea3-dbf08c6b4437",
+      "name": "Get Active Users"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        380,
+        -100
+      ],
+      "id": "ec56bad9-e57f-40e9-b686-bbdc9b175e4b",
+      "name": "Split Users"
+    },
+    {
+      "parameters": {
+        "operation": "select"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        580,
+        -280
+      ],
+      "id": "21bff3c7-8a3b-4fb4-8b87-6411b7ad97cb",
+      "name": "Get Daily Summary"
+    },
+    {
+      "parameters": {
+        "operation": "select"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        580,
+        80
+      ],
+      "id": "da1343c8-566a-46fb-975a-8cfae1e5e8b9",
+      "name": "Get Daily Meals"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gerar relatório diário motivacional\nconst user = $('Split Users').item.json;\nconst dailySummary = $('Get Daily Summary').first()?.json || null;\nconst meals = $('Get Daily Meals').all().map(item => item.json);\n\n// Dados padrão se não houver resumo\nconst summary = dailySummary || {\n  total_calories: 0,\n  total_protein: 0,\n  total_carbs: 0,\n  total_fat: 0,\n  total_water: 0,\n  total_fiber: 0\n};\n\n// Metas padrão do usuário\nconst targets = {\n  calories: user.daily_calorie_target || 2000,\n  protein: user.target_protein || 150,\n  carbs: user.target_carbs || 250,\n  fat: user.target_fat || 67,\n  water: user.target_water || 2000,\n  fiber: user.target_fiber || 25\n};\n\n// Calcular progressos\nconst progress = {\n  calories: Math.round((summary.total_calories / targets.calories) * 100),\n  protein: Math.round((summary.total_protein / targets.protein) * 100),\n  carbs: Math.round((summary.total_carbs / targets.carbs) * 100),\n  fat: Math.round((summary.total_fat / targets.fat) * 100),\n  water: Math.round((summary.total_water / targets.water) * 100),\n  fiber: Math.round((summary.total_fiber / targets.fiber) * 100)\n};\n\n// Função para gerar saudação baseada no horário\nfunction getGreeting() {\n  const hour = new Date().getHours();\n  if (hour < 12) return \"🌅 Bom dia\";\n  if (hour < 18) return \"☀️ Boa tarde\";\n  return \"🌙 Boa noite\";\n}\n\n// Função para avaliar progresso\nfunction getProgressEmoji(percentage) {\n  if (percentage >= 90 && percentage <= 110) return \"🎯\";\n  if (percentage >= 70) return \"👍\";\n  if (percentage >= 50) return \"⚡\";\n  return \"💪\";\n}\n\n// Função para gerar mensagem motivacional\nfunction getMotivationalMessage(progress, meals) {\n  const mealCount = meals.length;\n  let motivation = \"\";\n  \n  if (mealCount === 0) {\n    motivation = \"Ainda não registrou nenhuma refeição hoje? Não se preocupe! É hora de começar a cuidar da sua nutrição. Cada pequeno passo conta! 🌱\";\n  } else if (mealCount >= 3) {\n    motivation = \"Parabéns por manter a consistência! Você registrou várias refeições hoje. Isso mostra seu comprometimento! 🏆\";\n  } else {\n    motivation = \"Você está no caminho certo! Continue registrando suas refeições para um acompanhamento completo. 📈\";\n  }\n  \n  return motivation;\n}\n\n// Gerar análise de macronutrientes\nfunction analyzeMacros(progress) {\n  let analysis = \"\";\n  \n  if (progress.protein >= 90) {\n    analysis += \"🥩 Proteína: Excelente! Seus músculos agradecem.\\n\";\n  } else if (progress.protein >= 70) {\n    analysis += \"🥩 Proteína: Bom progresso! Que tal adicionar mais uma fonte?\\n\";\n  } else {\n    analysis += \"🥩 Proteína: Precisa de atenção. Inclua ovos, carnes ou leguminosas.\\n\";\n  }\n  \n  if (progress.carbs >= 80 && progress.carbs <= 120) {\n    analysis += \"🍞 Carboidratos: Energia equilibrada! Perfeito.\\n\";\n  } else if (progress.carbs < 80) {\n    analysis += \"🍞 Carboidratos: Sua energia pode precisar de um reforço saudável.\\n\";\n  } else {\n    analysis += \"🍞 Carboidratos: Cuidado para não exagerar na energia.\\n\";\n  }\n  \n  if (progress.water >= 100) {\n    analysis += \"💧 Hidratação: Perfeita! Você está bem hidratado.\\n\";\n  } else if (progress.water >= 70) {\n    analysis += \"💧 Hidratação: Quase lá! Mais alguns copos de água.\\n\";\n  } else {\n    analysis += \"💧 Hidratação: Atenção! Beba mais água ao longo do dia.\\n\";\n  }\n  \n  return analysis;\n}\n\n// Gerar dicas personalizadas\nfunction generateTips(progress, mealCount) {\n  const tips = [];\n  \n  if (progress.protein < 80) {\n    tips.push(\"💡 Dica: Adicione uma fonte de proteína em cada refeição (ovos, frango, peixe, leguminosas).\");\n  }\n  \n  if (progress.water < 80) {\n    tips.push(\"💡 Dica: Mantenha uma garrafa de água sempre por perto e beba pequenos goles regularmente.\");\n  }\n  \n  if (mealCount < 3) {\n    tips.push(\"💡 Dica: Tente fazer pelo menos 3 refeições por dia para manter seu metabolismo ativo.\");\n  }\n  \n  if (progress.fiber < 70) {\n    tips.push(\"💡 Dica: Inclua mais frutas, verduras e cereais integrais para aumentar as fibras.\");\n  }\n  \n  return tips;\n}\n\n// Construir mensagem completa\nconst greeting = getGreeting();\nconst motivation = getMotivationalMessage(progress, meals);\nconst macroAnalysis = analyzeMacros(progress);\nconst tips = generateTips(progress, meals.length);\n\nlet message = `${greeting}, ${user.name || 'Guerreiro(a) da Nutrição'}! 🌟\\n\\n`;\n\n// Resumo do dia\nmessage += `📊 **SEU BALANÇO NUTRICIONAL DE HOJE:**\\n\\n`;\n\nif (meals.length > 0) {\n  message += `🍽️ **Refeições registradas:** ${meals.length}\\n\\n`;\n  \n  // Progresso das metas\n  message += `🎯 **Progresso das suas metas:**\\n`;\n  message += `${getProgressEmoji(progress.calories)} Calorias: ${summary.total_calories}/${targets.calories} kcal (${progress.calories}%)\\n`;\n  message += `${getProgressEmoji(progress.protein)} Proteínas: ${summary.total_protein}/${targets.protein}g (${progress.protein}%)\\n`;\n  message += `${getProgressEmoji(progress.carbs)} Carboidratos: ${summary.total_carbs}/${targets.carbs}g (${progress.carbs}%)\\n`;\n  message += `${getProgressEmoji(progress.fat)} Gorduras: ${summary.total_fat}/${targets.fat}g (${progress.fat}%)\\n`;\n  message += `${getProgressEmoji(progress.water)} Água: ${summary.total_water}/${targets.water}ml (${progress.water}%)\\n\\n`;\n  \n  // Análise de macronutrientes\n  message += `🔍 **Análise detalhada:**\\n${macroAnalysis}\\n`;\n} else {\n  message += `Ainda não há registros de hoje. Que tal começar registrando sua próxima refeição? 🍽️\\n\\n`;\n}\n\n// Motivação personalizada\nmessage += `💪 **Motivação do dia:**\\n${motivation}\\n\\n`;\n\n// Dicas personalizadas\nif (tips.length > 0) {\n  message += `🎯 **Dicas personalizadas para você:**\\n${tips.join('\\n')}\\n\\n`;\n}\n\n// Mensagem final motivacional\nconst finalMotivations = [\n  \"🌱 Lembre-se: cada escolha saudável é um investimento no seu futuro!\",\n  \"✨ Você está construindo hábitos que transformarão sua vida!\",\n  \"🚀 Pequenos progressos diários levam a grandes transformações!\",\n  \"💚 Seu corpo é seu templo, continue cuidando dele com amor!\"\n];\n\nconst randomMotivation = finalMotivations[Math.floor(Math.random() * finalMotivations.length)];\nmessage += randomMotivation;\n\n// Verificar se deve enviar notificação (só se houver algum dado ou for novo usuário)\nconst shouldNotify = meals.length > 0 || !user.last_notification_date || \n  new Date(user.last_notification_date).toDateString() !== new Date().toDateString();\n\nreturn [{\n  json: {\n    user: user,\n    message: message,\n    shouldNotify: shouldNotify,\n    progress: progress,\n    mealCount: meals.length,\n    summary: summary\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        -100
+      ],
+      "id": "140a2bf9-fa63-4b2c-a71c-3a04c442a2de",
+      "name": "Generate Daily Report"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.shouldNotify }}",
+              "value2": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        980,
+        -100
+      ],
+      "id": "900ddb0c-79b8-4561-a78c-6e38211ed6d1",
+      "name": "Check Should Notify"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "Dieta Fácil Homologacao",
+        "remoteJid": "={{ $json.user.whatsapp.replace(/^(55\\d{2})9(\\d{8})$/, '$1$2') }}",
+        "messageText": "={{ $json.message }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        -260
+      ],
+      "id": "d0972f92-a840-43ee-baa1-f72ff5857212",
+      "name": "Send Daily Notification"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "users",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "last_notification_date",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        -260
+      ],
+      "id": "851adac6-121d-47e0-a2f4-1c27ca966bc0",
+      "name": "Update Notification Date"
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        -40
+      ],
+      "id": "bbff44f7-86fe-434f-bd2b-15d40c85a2df",
+      "name": "Wait Between Messages",
+      "webhookId": "71a789e6-5280-4a96-91c1-2119bf02333a"
+    }
+  ],
+  "connections": {
+    "Daily Trigger 19h": {
+      "main": [
+        [
+          {
+            "node": "Get Active Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Users": {
+      "main": [
+        [
+          {
+            "node": "Split Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Users": {
+      "main": [
+        [
+          {
+            "node": "Get Daily Summary",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Daily Meals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Daily Summary": {
+      "main": [
+        [
+          {
+            "node": "Generate Daily Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Daily Meals": {
+      "main": [
+        [
+          {
+            "node": "Generate Daily Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Daily Report": {
+      "main": [
+        [
+          {
+            "node": "Check Should Notify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Should Notify": {
+      "main": [
+        [
+          {
+            "node": "Send Daily Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Daily Notification": {
+      "main": [
+        [
+          {
+            "node": "Update Notification Date",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Wait Between Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "e6d53574-ed18-4dbe-964a-2cbeed135eab",
+  "triggerCount": 0,
+  "tags": []
+}
