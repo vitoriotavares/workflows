@@ -1,0 +1,114 @@
+{
+  "createdAt": "2025-06-05T21:51:42.814Z",
+  "updatedAt": "2025-06-12T01:35:52.725Z",
+  "id": "kLQYWGKafVX65qAQ",
+  "name": "Estamos de volta",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "4a0e3b6f-c650-4bc7-b473-a9048c64a404",
+      "name": "When clicking ‘Test workflow’"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f64bd0e4-c0b6-4de9-ae94-9b2b18819412",
+              "name": "user.phone",
+              "value": "558596122854",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ],
+      "id": "8638403c-1560-462c-91f5-2813c14059cb",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "Dieta Facil Dev",
+        "remoteJid": "={{ $json.user.phone }}",
+        "messageText": "🎉 Opa! Estamos de volta! 🎉\nOlá! 👋 O Dieta Fácil já está funcionando normalmente novamente!\nDesculpe pela indisponibilidade temporária - nossos sistemas estavam passando por uma manutenção para te servir ainda melhor! 🔧✨\nAgora você já pode:\n\n📝 Registrar suas refeições\n💧 Anotar sua ingestão de água\n📊 Consultar seus resumos\n🤖 Tirar todas as suas dúvidas nutricionais\n\nEstou aqui e pronto para te ajudar na sua jornada! 💪😊\nPode mandar sua mensagem que já vou te responder rapidinho! ⚡",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        440,
+        0
+      ],
+      "id": "3918b4cb-b306-4300-8b16-99aadadd54fa",
+      "name": "Evolution API",
+      "credentials": {
+        "evolutionApi": {
+          "id": "8Vyn5rMuwjwiaAUs",
+          "name": "Instancia Dev"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking ‘Test workflow’": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Evolution API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "6c8c8fe5-7231-4adb-87f6-79fb03e1477b",
+  "triggerCount": 0,
+  "tags": [
+    {
+      "createdAt": "2025-06-12T01:32:55.697Z",
+      "updatedAt": "2025-06-12T01:32:55.697Z",
+      "id": "n356g3fK510OWbD4",
+      "name": "prod"
+    },
+    {
+      "createdAt": "2025-05-30T11:31:18.780Z",
+      "updatedAt": "2025-05-30T11:31:18.780Z",
+      "id": "MkMWJqdLSlMeJZ5k",
+      "name": "claude_solution"
+    }
+  ]
+}
