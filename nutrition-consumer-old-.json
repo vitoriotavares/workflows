@@ -1,0 +1,532 @@
+{
+  "createdAt": "2025-06-02T12:32:23.008Z",
+  "updatedAt": "2025-06-02T17:52:34.735Z",
+  "id": "9jijeFKk2rcozNSA",
+  "name": "Nutrition Consumer OLD",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "pop",
+        "list": "queue:nutrition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        0,
+        120
+      ],
+      "id": "a57b9861-2840-48a1-919f-bb29229bde4f",
+      "name": "Pop Nutrition Queue",
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse da mensagem da fila\nconst queueData = $input.first().json.propertyName;\nconst messageData = queueData.originalMessage;\nconst classification = queueData.classification;\nconst routing = queueData.routing;\n\n// Capturar tempo de início\nconst startTime = Date.now();\n\n// Extrair texto da mensagem\nconst messageText = messageData.messageText || messageData.imageCaption || '';\n\n// Determinar tipo de análise nutricional necessária\nfunction analyzeNutritionRequest(text, messageData) {\n  const lowerText = text.toLowerCase().trim();\n  \n  // Tipos de análise\n  const analysisType = {\n    FOOD_REGISTRATION: 'registro_alimento',\n    WATER_INTAKE: 'consumo_agua', \n    MEAL_ANALYSIS: 'analise_refeicao',\n    DAILY_SUMMARY: 'resumo_diario',\n    NUTRITION_QUERY: 'consulta_nutricional',\n    GOAL_TRACKING: 'acompanhamento_meta'\n  };\n  \n  // Detectar tipo de solicitação\n  if (/^bebi \\d+ml|\\d+ml de água|(água|hidrat)/i.test(lowerText)) {\n    return {\n      type: analysisType.WATER_INTAKE,\n      complexity: 'low',\n      estimatedTokens: 800\n    };\n  }\n  \n  if (/(comi|almocei|jantei|lanchei|tomei café)/i.test(lowerText)) {\n    return {\n      type: analysisType.FOOD_REGISTRATION,\n      complexity: 'medium',\n      estimatedTokens: 1500\n    };\n  }\n  \n  if (/^(resumo|como estamos|minhas metas|total de hoje)/i.test(lowerText)) {\n    return {\n      type: analysisType.DAILY_SUMMARY,\n      complexity: 'high',\n      estimatedTokens: 2500\n    };\n  }\n  \n  if (/(relatório|análise completa|feedback|balanço)/i.test(lowerText)) {\n    return {\n      type: analysisType.MEAL_ANALYSIS,\n      complexity: 'high',\n      estimatedTokens: 3000\n    };\n  }\n  \n  if (/(déficit|superávit|meta diária|objetivo)/i.test(lowerText)) {\n    return {\n      type: analysisType.GOAL_TRACKING,\n      complexity: 'medium',\n      estimatedTokens: 1800\n    };\n  }\n  \n  // Default para consultas nutricionais\n  return {\n    type: analysisType.NUTRITION_QUERY,\n    complexity: 'medium',\n    estimatedTokens: 1200\n  };\n}\n\n// Extrair informações nutricionais do texto\nfunction extractNutritionData(text) {\n  const data = {\n    foods: [],\n    quantities: [],\n    units: [],\n    liquids: [],\n    timeOfDay: null,\n    mealType: null\n  };\n  \n  // Extrair alimentos comuns\n  const foodMatches = text.match(/(arroz|feijão|carne|frango|peixe|ovo|pão|leite|queijo|presunto|salada|tomate|alface|batata|macarrão|massa|suco|café|chá|açúcar|sal|óleo|manteiga)/gi);\n  if (foodMatches) {\n    data.foods = [...new Set(foodMatches.map(f => f.toLowerCase()))];\n  }\n  \n  // Extrair quantidades\n  const quantityMatches = text.match(/\\d+\\s*(g|ml|mg|kg|unidade|fatia|colher|xícara|copo|litro)/gi);\n  if (quantityMatches) {\n    data.quantities = quantityMatches;\n  }\n  \n  // Detectar tipo de refeição\n  if (/(café da manhã|manhã)/i.test(text)) data.mealType = 'cafe_manha';\n  else if (/(almoço|meio dia)/i.test(text)) data.mealType = 'almoco';\n  else if (/(lanche|tarde)/i.test(text)) data.mealType = 'lanche';\n  else if (/(jantar|janta|noite)/i.test(text)) data.mealType = 'jantar';\n  \n  // Detectar horário\n  const timeMatch = text.match(/(\\d{1,2}):?(\\d{2})?\\s*(h|hora|horas)?/i);\n  if (timeMatch) {\n    data.timeOfDay = timeMatch[0];\n  }\n  \n  return data;\n}\n\nconst nutritionAnalysis = analyzeNutritionRequest(messageText, messageData);\nconst extractedData = extractNutritionData(messageText);\n\nreturn [{\n  json: {\n    queueData: queueData,\n    messageData: messageData,\n    nutritionAnalysis: nutritionAnalysis,\n    extractedData: extractedData,\n    startTime: startTime,\n    needsGPTAnalysis: true,\n    userPhone: messageData.phoneNumber\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        120
+      ],
+      "id": "186c693c-9ef3-4639-a275-b4c91325a38c",
+      "name": "Analyze Nutrition Request"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "users",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "={{ $('Pop Nutrition Queue').item.json.propertyName.originalMessage.userId }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        400,
+        120
+      ],
+      "id": "ba774e7e-bcf9-4d50-b054-f9f642fda3f6",
+      "name": "Get User Profile",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "daily_summary",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "keyValue": "={{ $json.queueData.originalMessage.userId }}"
+            },
+            {
+              "keyName": "date",
+              "keyValue": "={{ new Date().toISOString().split('T')[0] }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        400,
+        320
+      ],
+      "id": "8116bec0-1ea7-4de6-98e4-522003aeea69",
+      "name": "Get Daily Nutrition",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combinar dados do usuário e nutrição diária\nconst nutritionData = $input.first().json;\nconst userProfile = $('Get User Profile').first()?.json || null;\nconst dailyNutrition = $('Get Daily Nutrition').first()?.json || null;\n\n// Dados padrão se usuário não existe\nconst defaultProfile = {\n  name: nutritionData.messageData.pushName || 'Usuário',\n  age: 30,\n  weight: 70,\n  height: 170,\n  gender: 'unspecified',\n  activity_level: 'moderate',\n  goal: 'maintain',\n  daily_calories: 2000,\n  daily_protein: 150,\n  daily_carbs: 250,\n  daily_fat: 67,\n  daily_water: 2000\n};\n\n// Dados padrão para nutrição diária\nconst defaultDailyNutrition = {\n  calories_consumed: 0,\n  protein_consumed: 0,\n  carbs_consumed: 0,\n  fat_consumed: 0,\n  water_consumed: 0,\n  meals_logged: 0\n};\n\nconst profile = userProfile || defaultProfile;\nconst dailyData = dailyNutrition || defaultDailyNutrition;\n\n// Construir prompt para GPT-4o baseado no tipo de análise\nfunction buildNutritionPrompt(analysisType, extractedData, profile, dailyData, messageText) {\n  const baseContext = `\nVocê é o Dieta Fácil, um assistente nutricional especializado.\n\nPERFIL DO USUÁRIO:\n- Nome: ${profile.name}\n- Idade: ${profile.age} anos\n- Peso: ${profile.weight}kg\n- Altura: ${profile.height}cm\n- Sexo: ${profile.gender}\n- Nível de atividade: ${profile.activity_level}\n- Objetivo: ${profile.goal}\n\nMETAS DIÁRIAS:\n- Calorias: ${profile.daily_calories}kcal\n- Proteínas: ${profile.daily_protein}g\n- Carboidratos: ${profile.daily_carbs}g\n- Gorduras: ${profile.daily_fat}g\n- Água: ${profile.daily_water}ml\n\nCONSUMO ATUAL HOJE:\n- Calorias: ${dailyData.calories_consumed}kcal (${Math.round((dailyData.calories_consumed/profile.daily_calories)*100)}% da meta)\n- Proteínas: ${dailyData.protein_consumed}g (${Math.round((dailyData.protein_consumed/profile.daily_protein)*100)}% da meta)\n- Carboidratos: ${dailyData.carbs_consumed}g (${Math.round((dailyData.carbs_consumed/profile.daily_carbs)*100)}% da meta)\n- Gorduras: ${dailyData.fat_consumed}g (${Math.round((dailyData.fat_consumed/profile.daily_fat)*100)}% da meta)\n- Água: ${dailyData.water_consumed}ml (${Math.round((dailyData.water_consumed/profile.daily_water)*100)}% da meta)\n- Refeições registradas: ${dailyData.meals_logged}\n`;\n\n  switch(analysisType.type) {\n    case 'registro_alimento':\n      return baseContext + `\nSOLICITAÇÃO: O usuário quer registrar o seguinte alimento/refeição:\n\"${messageText}\"\n\nAlimentos identificados: ${extractedData.foods.join(', ')}\nQuantidades: ${extractedData.quantities.join(', ')}\nTipo de refeição: ${extractedData.mealType || 'não especificado'}\n\nTAREFAS:\n1. Calcule as calorias e macronutrientes dos alimentos mencionados\n2. Some ao consumo atual do dia\n3. Forneça feedback sobre o progresso das metas\n4. Dê sugestões para otimizar a próxima refeição\n5. Retorne os dados em formato JSON para atualização do banco\n\nRESPONDA de forma amigável e motivadora, incluindo emojis.`;\n      \n    case 'consumo_agua':\n      const waterAmount = messageText.match(/\\d+/)?.[0] || '0';\n      return baseContext + `\nSOLICITAÇÃO: O usuário bebeu ${waterAmount}ml de água.\n\nTAREFAS:\n1. Some ${waterAmount}ml ao consumo de água atual\n2. Calcule a porcentagem da meta diária atingida\n3. Parabenize o progresso ou incentive a beber mais\n4. Dê dicas sobre hidratação\n5. Retorne os dados em formato JSON\n\nRESPONDA de forma encorajadora com emojis de água.`;\n      \n    case 'resumo_diario':\n      return baseContext + `\nSOLICITAÇÃO: O usuário quer ver o resumo do dia.\n\nTAREFAS:\n1. Apresente um resumo completo do consumo atual vs metas\n2. Calcule calorias restantes para o dia\n3. Sugira o que comer nas próximas refeições\n4. Avalie se está no caminho certo para o objetivo\n5. Dê motivação baseada no progresso\n\nRESPONDA com um relatório visual usando emojis e formatação clara.`;\n      \n    case 'analise_refeicao':\n      return baseContext + `\nSOLICITAÇÃO: Análise nutricional detalhada da refeição:\n\"${messageText}\"\n\nTAREFAS:\n1. Analise cada componente da refeição\n2. Avalie o equilíbrio nutricional\n3. Calcule o impacto nas metas diárias\n4. Sugira melhorias ou substituições\n5. Explique os benefícios nutricionais\n\nRESPONDA com análise detalhada e educativa.`;\n      \n    case 'consulta_nutricional':\n      return baseContext + `\nSOLICITAÇÃO: Consulta nutricional:\n\"${messageText}\"\n\nTAREFAS:\n1. Responda à pergunta considerando o perfil do usuário\n2. Dê informações precisas e baseadas em evidências\n3. Relacione com as metas pessoais do usuário\n4. Sugira ações práticas\n5. Eduque sobre nutrição\n\nRESPONDA de forma educativa e personalizada.`;\n      \n    case 'acompanhamento_meta':\n      return baseContext + `\nSOLICITAÇÃO: Acompanhamento de metas:\n\"${messageText}\"\n\nTAREFAS:\n1. Analise o progresso em direção ao objetivo (${profile.goal})\n2. Calcule se está no ritmo certo\n3. Identifique áreas que precisam de ajuste\n4. Sugira estratégias para melhorar\n5. Motive com base nos sucessos\n\nRESPONDA com análise motivadora e plano de ação.`;\n      \n    default:\n      return baseContext + `\nSOLICITAÇÃO: \"${messageText}\"\n\nAnalise a solicitação e responda de forma útil e personalizada.`;\n  }\n}\n\nconst gptPrompt = buildNutritionPrompt(\n  nutritionData.nutritionAnalysis,\n  nutritionData.extractedData,\n  profile,\n  dailyData,\n  nutritionData.messageData.messageText\n);\n\nreturn [{\n  json: {\n    ...nutritionData,\n    userProfile: profile,\n    dailyNutrition: dailyData,\n    gptPrompt: gptPrompt,\n    isNewUser: !userProfile\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        120
+      ],
+      "id": "bbc410cd-7958-4f35-85f4-96c091cc029b",
+      "name": "Prepare GPT Prompt"
+    },
+    {
+      "parameters": {
+        "model": "chatgpt-4o-latest",
+        "prompt": "=Você é o Dieta Fácil, um assistente nutricional especializado, amigável e motivador. Sempre responda em português brasileiro, use emojis apropriados e seja preciso com cálculos nutricionais. Quando necessário, retorne dados estruturados em JSON para atualização do banco de dados.",
+        "options": {
+          "maxTokens": 2000,
+          "temperature": 0.3
+        },
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        800,
+        120
+      ],
+      "id": "6758e173-5c3f-4bc0-b003-de475713d26e",
+      "name": "GPT Nutrition Analysis",
+      "credentials": {
+        "openAiApi": {
+          "id": "hDbVS33gRemwNAep",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Processar resposta do GPT e extrair dados estruturados\nconst gptResponse = $input.first().json.message.content;\nconst nutritionData = $('Prepare GPT Prompt').first().json;\n\n// Tentar extrair JSON da resposta (se houver)\nlet structuredData = null;\ntry {\n  const jsonMatch = gptResponse.match(/```json\\s*([\\s\\S]*?)\\s*```/);\n  if (jsonMatch) {\n    structuredData = JSON.parse(jsonMatch[1]);\n  }\n} catch (error) {\n  console.log('Nenhum JSON estruturado encontrado na resposta');\n}\n\n// Extrair valores nutricionais da resposta usando regex\nfunction extractNutritionValues(text) {\n  const values = {\n    calories: 0,\n    protein: 0,\n    carbs: 0,\n    fat: 0,\n    water: 0\n  };\n  \n  // Buscar padrões de valores nutricionais\n  const caloriesMatch = text.match(/(\\d+)\\s*kcal/i);\n  if (caloriesMatch) values.calories = parseInt(caloriesMatch[1]);\n  \n  const proteinMatch = text.match(/(\\d+)g.*protein/i);\n  if (proteinMatch) values.protein = parseInt(proteinMatch[1]);\n  \n  const carbsMatch = text.match(/(\\d+)g.*(carb|carboidrat)/i);\n  if (carbsMatch) values.carbs = parseInt(carbsMatch[1]);\n  \n  const fatMatch = text.match(/(\\d+)g.*(gord|fat)/i);\n  if (fatMatch) values.fat = parseInt(fatMatch[1]);\n  \n  const waterMatch = text.match(/(\\d+)ml/i);\n  if (waterMatch) values.water = parseInt(waterMatch[1]);\n  \n  return values;\n}\n\nconst extractedValues = structuredData?.nutrition || extractNutritionValues(gptResponse);\n\n// Preparar resposta limpa para o usuário (remover JSON se houver)\nconst cleanResponse = gptResponse.replace(/```json[\\s\\S]*?```/g, '').trim();\n\n// Calcular tokens usados (estimativa)\nconst tokensUsed = Math.ceil((nutritionData.gptPrompt.length + gptResponse.length) / 4);\n\nreturn [{\n  json: {\n    ...nutritionData,\n    gptResponse: cleanResponse,\n    structuredData: structuredData,\n    extractedValues: extractedValues,\n    tokensUsed: tokensUsed,\n    needsDbUpdate: extractedValues.calories > 0 || extractedValues.water > 0\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        120
+      ],
+      "id": "681146ac-c1ac-4835-9d01-34832c5b6b3d",
+      "name": "Process GPT Response"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "Dieta Fácil Homologacao",
+        "remoteJid": "={{ $json.messageData.phoneNumber.split('@')[0] }}",
+        "messageText": "={{ $json.gptResponse }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        120
+      ],
+      "id": "73f971ea-7e14-4919-8116-c354bccccdc2",
+      "name": "Send Nutrition Response"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.needsDbUpdate }}",
+              "value2": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1180,
+        380
+      ],
+      "id": "284f79ba-f729-4294-b0da-d5a390f7aff0",
+      "name": "Check Needs DB Update"
+    },
+    {
+      "parameters": {
+        "operation": "upsert"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        360
+      ],
+      "id": "331a9583-aa3b-4c37-9d4e-5cbda58bb8a8",
+      "name": "Update Daily Nutrition"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.isNewUser }}",
+              "value2": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        120
+      ],
+      "id": "3ce990cc-d4ae-491d-9be0-1e82077115aa",
+      "name": "Check New User"
+    },
+    {
+      "parameters": {
+        "operation": "insert"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        -100
+      ],
+      "id": "9085c39f-1483-4e90-82f9-5e85c4046212",
+      "name": "Create User Profile"
+    },
+    {
+      "parameters": {
+        "operation": "insert"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1800,
+        120
+      ],
+      "id": "c7aa3c47-9ead-4d75-88b5-ba53822cadb2",
+      "name": "Create Classification Log"
+    },
+    {
+      "parameters": {
+        "operation": "increment"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1800,
+        360
+      ],
+      "id": "d918840d-86af-4420-9141-8f85eca58f6f",
+      "name": "Increment Completed Metric"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "metrics:nutrition:last_processed",
+        "value": "={{ Date.now() }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1800,
+        600
+      ],
+      "id": "36f5e5aa-9476-48f6-a6ba-542781f84f32",
+      "name": "Update Last Processed"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -180,
+        120
+      ],
+      "id": "f20c7935-287a-4216-99f8-46c9cf63bfeb",
+      "name": "When clicking ‘Test workflow’"
+    }
+  ],
+  "connections": {
+    "Pop Nutrition Queue": {
+      "main": [
+        [
+          {
+            "node": "Analyze Nutrition Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Nutrition Request": {
+      "main": [
+        [
+          {
+            "node": "Get User Profile",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Daily Nutrition",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Profile": {
+      "main": [
+        [
+          {
+            "node": "Prepare GPT Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Daily Nutrition": {
+      "main": [
+        [
+          {
+            "node": "Prepare GPT Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare GPT Prompt": {
+      "main": [
+        [
+          {
+            "node": "GPT Nutrition Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT Nutrition Analysis": {
+      "main": [
+        [
+          {
+            "node": "Process GPT Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process GPT Response": {
+      "main": [
+        [
+          {
+            "node": "Send Nutrition Response",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Needs DB Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Nutrition Response": {
+      "main": [
+        [
+          {
+            "node": "Check New User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Needs DB Update": {
+      "main": [
+        [
+          {
+            "node": "Update Daily Nutrition",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check New User": {
+      "main": [
+        [
+          {
+            "node": "Create User Profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Daily Nutrition": {
+      "main": [
+        [
+          {
+            "node": "Create Classification Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create User Profile": {
+      "main": [
+        [
+          {
+            "node": "Create Classification Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Classification Log": {
+      "main": [
+        [
+          {
+            "node": "Increment Completed Metric",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Increment Completed Metric": {
+      "main": [
+        [
+          {
+            "node": "Update Last Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Test workflow’": {
+      "main": [
+        [
+          {
+            "node": "Pop Nutrition Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {
+    "Pop Nutrition Queue": [
+      {
+        "json": {
+          "propertyName": {
+            "originalMessage": {
+              "phoneNumber": "558599028259",
+              "messageType": "conversation",
+              "messageText": "Hoje comi 2 pães cariocas com 2 ovos e tomate. Também um café preto",
+              "imageCaption": "",
+              "hasAudio": false,
+              "hasImage": false,
+              "timestamp": 1748867894,
+              "pushName": "Vitorio",
+              "userId": "e6b07780-c9b5-4455-bcd9-97214020496f"
+            },
+            "classification": {
+              "type": "NUTRITION",
+              "confidence": 0.75,
+              "reasoning": {
+                "textLength": 67,
+                "wordCount": 14,
+                "hasNumbers": true,
+                "hasUnits": false,
+                "classification": "NUTRITION"
+              }
+            },
+            "routing": {
+              "queue": "queue:nutrition",
+              "model": "gpt-4o",
+              "priority": 3,
+              "timeout": 30000,
+              "maxRetries": 5,
+              "estimatedTokens": 2000
+            },
+            "analysis": {
+              "messageLength": 67,
+              "wordCount": 14,
+              "specialFlags": {
+                "isGreeting": false,
+                "isThankYou": false,
+                "isQuestion": false,
+                "hasNumbers": true,
+                "isList": false
+              },
+              "processingTime": "2025-06-02T13:08:17.796Z"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "versionId": "62f51b3a-97df-4851-83b5-3b77175fcc73",
+  "triggerCount": 0,
+  "tags": []
+}
