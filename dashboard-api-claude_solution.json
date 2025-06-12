@@ -1,0 +1,455 @@
+{
+  "createdAt": "2025-06-10T02:21:02.909Z",
+  "updatedAt": "2025-06-10T11:55:46.676Z",
+  "id": "OZBJab5el6vI6K1q",
+  "name": "Dashboard API",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "path": "dashboard/metrics",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -3860,
+        240
+      ],
+      "id": "948b1b6a-69bb-4ad1-ad7f-ba9024280f69",
+      "name": "Dashboard Webhook",
+      "webhookId": "4f1890b1-cf30-4205-bd2c-61ed2f69a6d6"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Determinar qual endpoint foi solicitado\nconst query = $input.first().json.query || {};\nconst endpoint = query.type || 'overview';\n\nreturn [{\n  json: {\n    endpoint: endpoint,\n    query: query,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3660,
+        240
+      ],
+      "id": "bfcbd17d-bc97-41d3-9483-1a888e56ad39",
+      "name": "Parse Dashboard Request"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.endpoint }}",
+                    "rightValue": "overview",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "overview"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.endpoint }}",
+                    "rightValue": "queues",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "queues"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.endpoint }}",
+                    "rightValue": "costs",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "costs"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.endpoint }}",
+                    "rightValue": "alerts",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "alerts"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        -3460,
+        240
+      ],
+      "id": "d69a07b2-5d0a-4bfb-b87d-1b1edc3807b1",
+      "name": "Route Dashboard Endpoint"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM dashboard_stats",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -3260,
+        -60
+      ],
+      "id": "2004530f-9838-4949-8646-e15355987c96",
+      "name": "Get Overview Stats",
+      "credentials": {
+        "postgres": {
+          "id": "m8W5D6Ml6jkdbYon",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "key": "metrics:cost_analysis",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -3060,
+        -60
+      ],
+      "id": "bf452ba2-5ba3-41ba-bdc9-47964f78d7a8",
+      "name": "Get Cost Analysis Cache",
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combinar dados do overview\nconst dbStats = $('Get Overview Stats').item.json;\nconst costAnalysis = JSON.parse($('Get Cost Analysis Cache').item.json.propertyName || '{}');\n\n// Buscar status das filas do Redis (simulado)\nconst queueStatuses = {\n  express: { length: 2, status: 'healthy', rate: 12.5 },\n  standard: { length: 5, status: 'active', rate: 8.2 },\n  nutrition: { length: 15, status: 'busy', rate: 3.1 },\n  vision: { length: 3, status: 'healthy', rate: 2.8 }\n};\n\nreturn [{\n  json: {\n    overview: {\n      messages: {\n        total24h: dbStats.messages_24h || 0,\n        total1h: dbStats.messages_1h || 0,\n        byType: {\n          express: dbStats.express_24h || 0,\n          standard: dbStats.standard_24h || 0,\n          nutrition: dbStats.nutrition_24h || 0,\n          vision: dbStats.vision_24h || 0\n        }\n      },\n      costs: {\n        total24h: dbStats.cost_24h || 0,\n        total1h: dbStats.cost_1h || 0,\n        avgPerMessage: costAnalysis.summary?.avgCostPerMessage || 0,\n        projection30d: costAnalysis.projections?.cost30d || 0\n      },\n      performance: {\n        avgProcessingTime: dbStats.avg_processing_time_1h || 0,\n        failedMessages: dbStats.failed_24h || 0,\n        successRate: dbStats.failed_24h ? ((dbStats.messages_24h - dbStats.failed_24h) / dbStats.messages_24h * 100) : 100\n      },\n      users: {\n        active24h: dbStats.active_users_24h || 0,\n        active1h: dbStats.active_users_1h || 0\n      },\n      queues: queueStatuses,\n      alerts: {\n        active: dbStats.active_alerts || 0\n      },\n      timestamp: new Date().toISOString()\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2860,
+        -60
+      ],
+      "id": "4ae16f70-e7a6-4450-b427-03a1c9ffcab6",
+      "name": "Build Overview Response"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dados das filas em tempo real\nconst queues = ['express', 'standard', 'nutrition', 'vision'];\n\n// Simular dados (em produção, buscar do Redis)\nconst queueData = queues.map(type => ({\n  name: type,\n  displayName: type.charAt(0).toUpperCase() + type.slice(1),\n  length: Math.floor(Math.random() * 20),\n  status: ['healthy', 'active', 'busy'][Math.floor(Math.random() * 3)],\n  processingRate: (Math.random() * 15).toFixed(1),\n  avgProcessingTime: Math.floor(Math.random() * 5000),\n  model: type === 'express' || type === 'standard' ? 'gpt-4o-mini' : 'gpt-4o',\n  priority: queues.indexOf(type) + 1,\n  estimatedCost: (Math.random() * 0.01).toFixed(4)\n}));\n\nreturn [{\n  json: {\n    queues: {\n      data: queueData,\n      summary: {\n        totalLength: queueData.reduce((sum, q) => sum + q.length, 0),\n        healthyQueues: queueData.filter(q => q.status === 'healthy').length,\n        busyQueues: queueData.filter(q => q.status === 'busy').length,\n        avgProcessingRate: (queueData.reduce((sum, q) => sum + parseFloat(q.processingRate), 0) / queueData.length).toFixed(1)\n      },\n      timestamp: new Date().toISOString()\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3260,
+        140
+      ],
+      "id": "a31724ac-2272-4273-bd2c-0961c4174a22",
+      "name": "Build Queues Response"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "key": "metrics:cost_analysis",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -3260,
+        300
+      ],
+      "id": "86f527f3-3c6f-4c3b-b98d-448de5d4a8fe",
+      "name": "Get Costs Data",
+      "credentials": {
+        "redis": {
+          "id": "SGooYEMsAI8ce5zh",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dados de custos detalhados\nconst costData = JSON.parse($json.propertyName || '{}');\n\n// Adicionar dados históricos simulados\nconst historicalCosts = [];\nfor (let i = 23; i >= 0; i--) {\n  const hour = new Date();\n  hour.setHours(hour.getHours() - i);\n  \n  historicalCosts.push({\n    hour: hour.toISOString(),\n    cost: (Math.random() * 0.5).toFixed(4),\n    messages: Math.floor(Math.random() * 50) + 10,\n    tokens: Math.floor(Math.random() * 50000) + 10000\n  });\n}\n\nreturn [{\n  json: {\n    costs: {\n      current: costData.summary || {\n        totalMessages: 0,\n        totalCost: 0,\n        avgCostPerMessage: 0,\n        avgTokensPerMessage: 0\n      },\n      projections: costData.projections || {\n        cost24h: 0,\n        cost30d: 0,\n        messages24h: 0\n      },\n      breakdown: costData.breakdown || [],\n      historical: historicalCosts,\n      efficiency: {\n        costPerToken: costData.summary?.totalTokens > 0 ? (costData.summary.totalCost / costData.summary.totalTokens).toFixed(6) : 0,\n        tokensPerSecond: 0,\n        optimizationSavings: 0.85\n      },\n      timestamp: new Date().toISOString()\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3060,
+        300
+      ],
+      "id": "b153ecc2-0135-4547-8bcd-6af29d46598e",
+      "name": "Build Costs Response"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  alert_type,\n  severity,\n  message,\n  details,\n  created_at,\n  resolved\nFROM system_alerts \nWHERE created_at >= NOW() - INTERVAL '24 hours'\nORDER BY created_at DESC\nLIMIT 50",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -3260,
+        500
+      ],
+      "id": "2a1eedde-2115-4d4f-97ba-8df5e6a1bcf2",
+      "name": "Get Alerts Data",
+      "credentials": {
+        "postgres": {
+          "id": "m8W5D6Ml6jkdbYon",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Processar dados de alertas\nconst alerts = $input.all().map(item => item.json);\n\n// Agrupar por severidade\nconst bySeverity = {\n  CRITICAL: alerts.filter(a => a.severity === 'CRITICAL'),\n  HIGH: alerts.filter(a => a.severity === 'HIGH'),\n  MEDIUM: alerts.filter(a => a.severity === 'MEDIUM'),\n  LOW: alerts.filter(a => a.severity === 'LOW')\n};\n\n// Agrupar por tipo\nconst byType = {};\nalerts.forEach(alert => {\n  if (!byType[alert.alert_type]) {\n    byType[alert.alert_type] = [];\n  }\n  byType[alert.alert_type].push(alert);\n});\n\n// Estatísticas\nconst stats = {\n  total: alerts.length,\n  active: alerts.filter(a => !a.resolved).length,\n  resolved: alerts.filter(a => a.resolved).length,\n  critical: bySeverity.CRITICAL.length,\n  high: bySeverity.HIGH.length,\n  medium: bySeverity.MEDIUM.length,\n  low: bySeverity.LOW.length\n};\n\nreturn [{\n  json: {\n    alerts: {\n      data: alerts,\n      stats: stats,\n      bySeverity: bySeverity,\n      byType: byType,\n      recentCritical: bySeverity.CRITICAL.slice(0, 5),\n      timestamp: new Date().toISOString()\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3060,
+        500
+      ],
+      "id": "d9b96989-ae4f-41b7-9ef3-33ad62feb872",
+      "name": "Build Alerts Response"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -2660,
+        240
+      ],
+      "id": "e2167e04-8266-45f1-bab8-7aa2747a8137",
+      "name": "Send Dashboard Response"
+    }
+  ],
+  "connections": {
+    "Dashboard Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Dashboard Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Dashboard Request": {
+      "main": [
+        [
+          {
+            "node": "Route Dashboard Endpoint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Dashboard Endpoint": {
+      "main": [
+        [
+          {
+            "node": "Get Overview Stats",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Queues Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Costs Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Alerts Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Overview Stats": {
+      "main": [
+        [
+          {
+            "node": "Get Cost Analysis Cache",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Cost Analysis Cache": {
+      "main": [
+        [
+          {
+            "node": "Build Overview Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Overview Response": {
+      "main": [
+        [
+          {
+            "node": "Send Dashboard Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Queues Response": {
+      "main": [
+        [
+          {
+            "node": "Send Dashboard Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Costs Data": {
+      "main": [
+        [
+          {
+            "node": "Build Costs Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Costs Response": {
+      "main": [
+        [
+          {
+            "node": "Send Dashboard Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Alerts Data": {
+      "main": [
+        [
+          {
+            "node": "Build Alerts Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Alerts Response": {
+      "main": [
+        [
+          {
+            "node": "Send Dashboard Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "b5063849-db60-4e15-aee2-a64dc3a31141",
+  "triggerCount": 0,
+  "tags": [
+    {
+      "createdAt": "2025-05-30T11:31:18.780Z",
+      "updatedAt": "2025-05-30T11:31:18.780Z",
+      "id": "MkMWJqdLSlMeJZ5k",
+      "name": "claude_solution"
+    }
+  ]
+}
