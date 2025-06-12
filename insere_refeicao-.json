@@ -1,0 +1,793 @@
+{
+  "createdAt": "2025-05-09T13:25:07.639Z",
+  "updatedAt": "2025-05-09T14:05:35.184Z",
+  "id": "JfO87rcQKgqiH4S4",
+  "name": "Insere_Refeicao",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "alimentos",
+              "type": "array"
+            },
+            {
+              "name": "diary_day_id"
+            },
+            {
+              "name": "tipo_refeicao_id",
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "id": "b274b6bc-6fc2-45e9-bbd6-2349699ff11a",
+      "typeVersion": 1.1,
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        -560,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d719e511-2ebb-4e38-adc4-c52598fa006f",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -140,
+        260
+      ],
+      "id": "aeeefeba-7fc0-4c6c-9d7f-4842644ef72a",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "tableId": "meals",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "diary_day_id",
+              "fieldValue": "834e9ed3-471f-4787-b647-71d281dbebf9"
+            },
+            {
+              "fieldId": "meal_type_id",
+              "fieldValue": "1"
+            },
+            {
+              "fieldId": "time_consumed",
+              "fieldValue": "={{ $now.format('yyyy-MM-dd HH:MM:s') }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "e040e0e3-e82a-4f3e-a40f-5b349b3a4a19",
+      "name": "Create meals",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "alimentos",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        860,
+        240
+      ],
+      "id": "a3164bbc-428d-40de-a5be-7045c6b60a21",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6f9a69e4-c336-40cd-975d-10a4b0dede25",
+              "name": "alimentos",
+              "value": "={{ $('When Executed by Another Workflow').item.json.alimentos }}",
+              "type": "array"
+            },
+            {
+              "id": "10b891b1-5f19-458d-a001-729dd1e34d99",
+              "name": "meal.id",
+              "value": "={{ $('If').item.json.id || $json.id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        660,
+        240
+      ],
+      "id": "9ac75321-821c-4ca4-ae3c-a14e027c9b40",
+      "name": "Globals"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        240
+      ],
+      "id": "5de3437a-6dc1-4f56-ad12-a605f555d393",
+      "name": "Remove Duplicates"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "meals",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "meal_type_id",
+              "keyValue": "={{ $json.tipo_refeicao_id }}"
+            },
+            {
+              "keyName": "diary_day_id",
+              "keyValue": "={{ $json.diary_day_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -360,
+        500
+      ],
+      "id": "3240bb86-cb88-4acf-ba36-6b85a1141699",
+      "name": "Verifica meals de hoje2",
+      "alwaysOutputData": true,
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "meals",
+          "mode": "list",
+          "cachedResultName": "meals"
+        },
+        "where": {
+          "values": [
+            {
+              "column": "meal_type_id",
+              "value": "={{ $json.tipo_refeicao_id }}"
+            },
+            {
+              "column": "diary_day_id",
+              "value": "={{ $json.diary_day_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -360,
+        260
+      ],
+      "id": "97d40492-f88f-48e6-92f2-d6f0cdff2cf4",
+      "name": "Verifica meals de hoje",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "m8W5D6Ml6jkdbYon",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "tableId": "food_items",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "meal_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        80,
+        820
+      ],
+      "id": "c7ca2b1e-2fb2-4095-8e83-714c2f888002",
+      "name": "delete_food_items1",
+      "alwaysOutputData": true,
+      "executeOnce": false,
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "deleteTable",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "food_items",
+          "mode": "list",
+          "cachedResultName": "food_items"
+        },
+        "deleteCommand": "delete",
+        "where": {
+          "values": [
+            {
+              "column": "meal_id",
+              "value": "={{ $json.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        240,
+        240
+      ],
+      "id": "1c97d91b-5e00-4ebb-ba9e-4229fa0a4c52",
+      "name": "delete_food_items",
+      "credentials": {
+        "postgres": {
+          "id": "m8W5D6Ml6jkdbYon",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "meals",
+          "mode": "list",
+          "cachedResultName": "meals"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "diary_day_id": "={{ $('When Executed by Another Workflow').item.json.diary_day_id }}",
+            "meal_type_id": "={{ $('When Executed by Another Workflow').item.json.tipo_refeicao_id }}",
+            "time_consumed": "={{ $now.format('yyyy-MM-dd HH:MM:s') }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "diary_day_id",
+              "displayName": "diary_day_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "meal_type_id",
+              "displayName": "meal_type_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "time_consumed",
+              "displayName": "time_consumed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "protein",
+              "displayName": "protein",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "carbs",
+              "displayName": "carbs",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "fat",
+              "displayName": "fat",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "fiber",
+              "displayName": "fiber",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "calories",
+              "displayName": "calories",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        240,
+        480
+      ],
+      "id": "b81d3812-809d-43b9-bb7e-91d80f0e7d42",
+      "name": "new_meals",
+      "credentials": {
+        "postgres": {
+          "id": "m8W5D6Ml6jkdbYon",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "food_items",
+        "dataToSend": "autoMapInputData"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        380
+      ],
+      "id": "71f3efac-eacb-4517-918e-faaaa2732147",
+      "name": "Insere Alimento2",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "food_items",
+          "mode": "list",
+          "cachedResultName": "food_items"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "meal_id",
+              "displayName": "meal_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "quantity",
+              "displayName": "quantity",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "emoji",
+              "displayName": "emoji",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "protein",
+              "displayName": "protein",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "carbs",
+              "displayName": "carbs",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fat",
+              "displayName": "fat",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fiber",
+              "displayName": "fiber",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "calories",
+              "displayName": "calories",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1300,
+        240
+      ],
+      "id": "c032ed62-ba98-4ee6-ae1b-40d9b1cbfec4",
+      "name": "Insere Alimento",
+      "credentials": {
+        "postgres": {
+          "id": "m8W5D6Ml6jkdbYon",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "food_items",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "meal_id",
+              "condition": "is",
+              "keyValue": "NULL"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "meal_id",
+              "fieldValue": "={{ $('Globals').item.json.meal.id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1940,
+        380
+      ],
+      "id": "08046c13-123d-43a2-b329-95742c6d0a00",
+      "name": "Atualiza meal_id1",
+      "alwaysOutputData": true,
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.food_items SET meal_id = $1 WHERE meal_id is NULL",
+        "options": {
+          "queryReplacement": "={{ $('Globals').item.json.meal.id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1520,
+        240
+      ],
+      "id": "b2ec8f07-19e9-4087-9a9a-e18649198c4c",
+      "name": "Atualiza meal_id",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "m8W5D6Ml6jkdbYon",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Verifica meals de hoje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "delete_food_items",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "new_meals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Remove Duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Globals": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove Duplicates": {
+      "main": [
+        [
+          {
+            "node": "Insere Alimento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verifica meals de hoje2": {
+      "main": [
+        []
+      ]
+    },
+    "Verifica meals de hoje": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "delete_food_items1": {
+      "main": [
+        []
+      ]
+    },
+    "delete_food_items": {
+      "main": [
+        [
+          {
+            "node": "Globals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "new_meals": {
+      "main": [
+        [
+          {
+            "node": "Globals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insere Alimento2": {
+      "main": [
+        [
+          {
+            "node": "Atualiza meal_id1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insere Alimento": {
+      "main": [
+        [
+          {
+            "node": "Atualiza meal_id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualiza meal_id": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "31dc4400-114f-4f16-b735-aa621080cf4b",
+  "triggerCount": 0,
+  "tags": []
+}
