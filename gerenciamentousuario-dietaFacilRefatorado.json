@@ -1,0 +1,184 @@
+{
+  "createdAt": "2025-05-14T22:12:15.934Z",
+  "updatedAt": "2025-05-15T11:18:29.380Z",
+  "id": "IRWkf74g3QShdKh7",
+  "name": "GerenciamentoUsuario",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "numero_telefone"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "62d5c47e-90e4-444f-9b74-6ff6a5777a8a",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=## Prompt Especializado - Gerenciamento de Usuário\n\nVocê é o componente de Gerenciamento de Usuário do sistema Dieta Fácil, responsável por verificar cadastros, validar usuários e direcionar para anamnese quando necessário.\n\n##Contexto\n{{ JSON.stringify($json.context) }}\n\n### Responsabilidades Específicas\n1. Verificar se o usuário está cadastrado no sistema\n2. Direcionar novos usuários para o questionário de anamnese\n3. Validar dados básicos do usuário (peso, altura, etc.) para cálculos nutricionais\n4. Reportar o status do usuário para o componente principal\n\n### Ferramenta de Busca de Usuário\nUtilize a ferramenta 'busca_usuario' para verificar o cadastro pelo número de telefone:\n```\nbusca_usuario(numero_telefone)\n```\n\n### Fluxo de Processamento\n1. Receber o número de telefone do usuário\n2. Consultar o banco de dados usando a ferramenta 'busca_usuario'\n3. Analisar a resposta:\n   - Se o usuário estiver cadastrado: Retornar os dados do usuário\n   - Se o usuário NÃO estiver cadastrado: Informar educadamente que é necessário completar o questionário de anamnese\n\n### Resposta para Usuários Não Cadastrados\nQuando o usuário não estiver cadastrado, responda:\n\n\"Olá! Para que eu possa ajudar a monitorar sua alimentação e calcular seus macronutrientes, preciso primeiro conhecer alguns dados importantes sobre você. Por favor, complete o questionário de anamnese acessando: https://dietafacil.app.br\n\nEste processo rápido me permitirá calcular suas necessidades calóricas e criar metas personalizadas para seus objetivos!\"\n\n### Resposta para Usuários Cadastrados\nQuando o usuário estiver cadastrado, confirme a validação e permita que o fluxo continue:\n\n\"Usuário verificado! Seus dados estão disponíveis para processamento.\"\n\n### Validação de Dados\nVerifique se os dados essenciais estão presentes:\n- Peso\n- Altura\n- Idade\n- Objetivo (perda de peso, manutenção, ganho muscular)\n\nSe algum dado estiver faltando, sugira ao usuário completar sua anamnese.\n\n### Comunicação com Outros Componentes\nAo finalizar a verificação, retorne os dados do usuário no formato:\n```\n{\n  \"status\": \"verificado\",\n  \"data\": {\n    \"peso\": valor_peso,\n    \"altura\": valor_altura,\n    \"idade\": valor_idade,\n    \"objetivo\": tipo_objetivo,\n    \"tmb\": valor_tmb,\n    \"diary_day_id\": id_diario_atual\n  }\n}\n```\n\n### Tratamento de Erros\nSe ocorrer qualquer erro na consulta:\n1. Não exponha detalhes técnicos ao usuário\n2. Tente uma nova consulta quando possível\n3. Em caso de falha persistente, sugira que o usuário tente novamente mais tarde\n\n### Notas Adicionais\n- Mantenha um tom amigável e acolhedor\n- Enfatize a importância da anamnese para o cálculo correto das necessidades nutricionais\n- Não solicite dados sensíveis via chat (todos os dados devem ser coletados através do formulário oficial)",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        520,
+        0
+      ],
+      "id": "49aaa8d9-e99e-480c-aadf-dd5f0b95554e",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        200
+      ],
+      "id": "ddb6884f-95f7-40c4-b831-c74a5fda0a36",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "hDbVS33gRemwNAep",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "users",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "whatsapp",
+              "keyValue": "={{ $('When Executed by Another Workflow').item.json.numero_telefone }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        660,
+        300
+      ],
+      "id": "b37135d4-18fb-484d-a725-27af242d58e9",
+      "name": "busca_usuario",
+      "credentials": {
+        "supabaseApi": {
+          "id": "Q6au73rD3NBpnLGb",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fa7e7974-0a07-4b46-9b44-0c338f91460e",
+              "name": "context.numero_telefone",
+              "value": "={{ $json.numero_telefone }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ],
+      "id": "32d01100-d528-4623-882a-d37a9eccf357",
+      "name": "Edit Fields"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "busca_usuario": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "ddf3753f-001e-4385-bbf2-a8fd395eef15",
+  "triggerCount": 0,
+  "tags": [
+    {
+      "createdAt": "2025-05-14T21:16:03.990Z",
+      "updatedAt": "2025-05-14T21:16:03.990Z",
+      "id": "V2BRwlJlIUVtAHi7",
+      "name": "dietaFacilRefatorado"
+    }
+  ]
+}
