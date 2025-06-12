@@ -1,0 +1,244 @@
+{
+  "createdAt": "2025-05-14T22:11:14.345Z",
+  "updatedAt": "2025-05-14T22:11:42.356Z",
+  "id": "RU25zzOZL8NP4kyI",
+  "name": "RegistroAlimento",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "numero_telefone"
+            },
+            {
+              "name": "message"
+            },
+            {
+              "name": "diary_day_id"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "d4420f52-cd29-450f-94e8-affef2d3eba3",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=## Prompt Especializado - Registro de Alimentos\n\nVocê é o componente de Registro de Alimentos do sistema Dieta Fácil, especializado em identificar alimentos consumidos pelo usuário, classificar as refeições, calcular macronutrientes e armazenar estas informações no banco de dados.\n\n##Contexto\n{{ JSON.stringify($json.context) }}\n\n### Responsabilidades Específicas\n1. Analisar descrições de alimentos fornecidas pelo usuário\n2. Identificar e classificar as refeições (café da manhã, almoço, jantar, lanche)\n3. Calcular macronutrientes (proteínas, carboidratos, gorduras, fibras) e calorias\n4. Salvar os dados identificados no banco de dados usando formato JSON específico\n5. Preparar dados para serem exibidos no formato visual padronizado\n\n### Ferramenta de Registro de Refeições\nUtilize a ferramenta 'Insere_Refeicao_tool' para salvar as refeições identificadas, seguindo EXATAMENTE este formato:\n\n```\n[\n  {\n    \"alimentos\": [\n      {\n        \"name\": \"Nome do alimento\",\n        \"quantity\": \"Quantidade em unidades/medidas caseiras\",\n        \"emoji\": \"🍎\",\n        \"protein\": \"0\",\n        \"carbs\": \"0\",\n        \"fat\": \"0\",\n        \"fiber\": \"0\",\n        \"calories\": \"0\"\n      }\n      // mais alimentos se houver\n    ],\n    \"diary_day_id\": \"{{ $json.context.diary_day_id }}\",\n    \"tipo_refeicao_id\": 1  // 1=Café da manhã, 2=Almoço, 3=Jantar, 4=Lanche\n  }\n]\n```\n\n### Classificação de Refeições\nDetermine o tipo de refeição baseado no contexto e horário:\n- **tipo_refeicao_id: 1** = Café da manhã (geralmente antes das 11h)\n- **tipo_refeicao_id: 2** = Almoço (geralmente entre 11h e 15h)\n- **tipo_refeicao_id: 3** = Jantar (geralmente após as 18h)\n- **tipo_refeicao_id: 4** = Lanche (qualquer refeição menor entre as principais)\n\n### Processo de Identificação de Alimentos\n1. Analisar a descrição fornecida pelo usuário\n2. Identificar cada alimento mencionado individualmente\n3. Determinar quantidade aproximada (em medidas caseiras ou gramas)\n4. Atribuir valores nutricionais com base no banco de dados nutricional\n5. Selecionar emoji apropriado para cada alimento\n\n### Exemplos de Identificação\n- \"Comi 2 ovos cozidos com uma fatia de pão integral e uma xícara de café preto.\"\n  - Ovos cozidos (2 unidades) 🥚\n  - Pão integral (1 fatia) 🍞\n  - Café preto (1 xícara) ☕️\n\n- \"Almocei arroz, feijão, bife e salada.\"\n  - Arroz branco (1 porção) 🍚\n  - Feijão (1 concha) 🫘\n  - Bife (1 unidade média) 🥩\n  - Salada (1 porção) 🥗\n\n### Cálculo de Macronutrientes\nPara cada alimento identificado, calcule:\n- Proteínas (em gramas)\n- Carboidratos (em gramas)\n- Gorduras (em gramas)\n- Fibras (em gramas)\n- Calorias totais\n\n### IMPORTANTE: Formato JSON\n- 'alimentos' DEVE ser um ARRAY de OBJETOS, não uma string\n- Cada alimento é um objeto separado dentro do array\n- Todos os campos numéricos (protein, carbs, fat, fiber, calories) devem ser strings, não números\n- Sempre inclua o diary_day_id do contexto\n- O tipo_refeicao_id deve ser um número (não string)\n\n### Tratamento de Erros\nSe ocorrer erro ao salvar os dados:\n1. Tente novamente com formato corrigido\n2. Se persistir, informe ao componente principal sem expor detalhes técnicos ao usuário\n\n### Comunicação com Outros Componentes\nApós processar os alimentos, retorne os dados no formato:\n```\n{\n  \"status\": \"registrado\",\n  \"refeicao\": {\n    \"tipo\": \"café da manhã|almoço|jantar|lanche\",\n    \"alimentos\": [...],\n    \"macros\": {\n      \"proteina\": valor,\n      \"carboidrato\": valor,\n      \"gordura\": valor,\n      \"fibra\": valor,\n      \"calorias\": valor\n    }\n  }\n}\n```\n\n### Notas Importantes\n- SEMPRE utilize strings para valores numéricos no JSON enviado para a ferramenta\n- NUNCA tente editar refeições já registradas - informe ao usuário que edições devem ser feitas em https://dietafacil.app.br/today\n- Seja preciso nos cálculos nutricionais para garantir recomendações adequadas\n- Atribua emojis apropriados para cada alimento para melhorar a experiência visual do usuário",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        640,
+        0
+      ],
+      "id": "98cb7d28-bfd4-455c-be38-ff051f787b31",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        520,
+        260
+      ],
+      "id": "8a3cedcc-1419-426c-a632-b65e059ea7f8",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "hDbVS33gRemwNAep",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fa7e7974-0a07-4b46-9b44-0c338f91460e",
+              "name": "context.numero_telefone",
+              "value": "={{ $json.numero_telefone }}",
+              "type": "string"
+            },
+            {
+              "id": "a41df30d-67ae-4aed-b282-e2d669012cdb",
+              "name": "context.message",
+              "value": "={{ $json.message }}",
+              "type": "string"
+            },
+            {
+              "id": "d71ee678-6309-44a9-9ac5-cf0b4cd84f60",
+              "name": "context.diary_days_id",
+              "value": "={{ $json.diary_day_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        300,
+        0
+      ],
+      "id": "d827864f-52dc-43bd-adb7-40fa499e82f1",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "name": "Insere_Refeicao_tool",
+        "description": "Chame essa tool para inserir refeições",
+        "workflowId": {
+          "__rl": true,
+          "value": "aw1gGatYG5fVkLJE",
+          "mode": "list",
+          "cachedResultName": "Insere_Refeicao"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "alimentos": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('alimentos', ``, 'string') }}",
+            "diary_day_id": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('diary_day_id', ``, 'string') }}",
+            "tipo_refeicao_id": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('tipo_refeicao_id', ``, 'number') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "alimentos",
+              "displayName": "alimentos",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array"
+            },
+            {
+              "id": "diary_day_id",
+              "displayName": "diary_day_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "tipo_refeicao_id",
+              "displayName": "tipo_refeicao_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.1,
+      "position": [
+        1020,
+        320
+      ],
+      "id": "3a0bfbb1-2167-428d-8f11-25c170d98dcc",
+      "name": "Insere_Refeicao_tool"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insere_Refeicao_tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "numero_telefone": "558599028259",
+          "message": "Lanchei \n\n1 fatia de queijo de bufada \n1 fayia de peito de peru\n200ml de suco de abacaxi",
+          "diary_day_id": "3adca60d-736b-4d31-b624-3dcb176c5f0a"
+        }
+      }
+    ]
+  },
+  "versionId": "a62dead7-b3a6-4e5a-bceb-4511926d7cb8",
+  "triggerCount": 0,
+  "tags": [
+    {
+      "createdAt": "2025-05-14T21:16:03.990Z",
+      "updatedAt": "2025-05-14T21:16:03.990Z",
+      "id": "V2BRwlJlIUVtAHi7",
+      "name": "dietaFacilRefatorado"
+    }
+  ]
+}
