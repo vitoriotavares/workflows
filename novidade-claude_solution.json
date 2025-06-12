@@ -1,0 +1,108 @@
+{
+  "createdAt": "2025-06-06T22:23:03.724Z",
+  "updatedAt": "2025-06-06T23:26:02.915Z",
+  "id": "cIEOLHXmWckfdHSf",
+  "name": "Novidade",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "d2b728f4-aab8-456a-9a16-a77b6efe8086",
+      "name": "When clicking ‘Test workflow’"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f64bd0e4-c0b6-4de9-ae94-9b2b18819412",
+              "name": "user.phone",
+              "value": "558596122854",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ],
+      "id": "4088dcb1-9c6d-4614-8412-177f80bb2eeb",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "Dieta Facil Dev",
+        "remoteJid": "={{ $json.user.phone }}",
+        "messageText": "📸 **COMO USAR O MODO FOTO DO DIETA FÁCIL** 📸\n\nOlá! 👋 Agora você pode enviar fotos dos seus pratos e eu vou analisar tudo para você! 🤖✨\n\n## 🎯 **COMO FUNCIONA:**\n\n**1️⃣ TIRE A FOTO** 📱\n• Foque bem no prato/alimento\n• Boa iluminação ajuda muito! 💡\n• Quanto mais clara, melhor a análise! \n\n**2️⃣ ESCREVA UMA LEGENDA** ✍️\nA legenda é SUPER importante! Ela me diz o que você quer:\n\n## 🔍 **TIPOS DE ANÁLISE:**\n\n### **🆔 IDENTIFICAÇÃO SIMPLES**\n*Legenda:* \"O que é isso?\" ou \"Que comida é essa?\"\n*Resultado:* Eu identifico os alimentos na foto\n\n### **⚖️ ESTIMATIVA DE PORÇÃO** \n*Legenda:* \"Quanto pesa?\" ou \"Qual o tamanho da porção?\"\n*Resultado:* Estimo peso e quantidade dos alimentos\n\n### **🔥 ANÁLISE NUTRICIONAL**\n*Legenda:* \"Quantas calorias?\" ou \"Valor nutricional\"\n*Resultado:* Cálculo completo de calorias e macros\n\n### **📝 REGISTRO COMPLETO** ⭐\n*Legenda:* \"Comi isso no almoço\" ou \"Registra essa refeição\"\n*Resultado:* **SALVA automaticamente no seu diário!** \n\n## ⚠️ **IMPORTANTE PARA SALVAR:**\n\nPara eu **SALVAR** a refeição no seu banco de dados, use palavras como:\n• ✅ \"Comi...\" \n• ✅ \"Almocei...\"\n• ✅ \"Jantei...\"\n• ✅ \"Lanchei...\"\n• ✅ \"Registra...\"\n\n**Exemplos:**\n• ✅ \"Comi isso no café da manhã\" → **SALVA**\n• ✅ \"Almocei esse prato\" → **SALVA**\n• ❌ \"O que é isso?\" → **NÃO SALVA** (só identifica)\n• ❌ \"Quantas calorias?\" → **NÃO SALVA** (só calcula)\n\n## 🕐 **HORÁRIOS AUTOMÁTICOS:**\n\nSe não disser a refeição, eu uso o horário:\n• 🌅 5h-10h → Café da manhã\n• 🌞 10h-15h → Almoço  \n• 🌆 15h-19h → Lanche\n• 🌙 19h+ → Jantar\n\n## 💡 **DICAS PARA MELHORES RESULTADOS:**\n\n1. **📷 Foto clara** com boa luz\n2. **✍️ Legenda específica** sobre sua intenção\n3. **🍽️ Prato visível** sem obstáculos\n4. **📝 Mencione a refeição** se quiser salvar\n5. **⏰ Horário** ajuda na classificação\n\n## 🎯 **EXEMPLOS PERFEITOS:**\n\n📸 + *\"Comi esse prato no almoço\"*\n📸 + *\"Jantei isso, registra aí\"*\n📸 + *\"Almocei essa salada, quantas calorias?\"*\n📸 + *\"Lanchei essas frutas\"*\n\n**Agora é só testar! Mande uma foto com legenda e vamos analisar juntos!** 📸🚀\n\n*Lembre-se: quanto mais detalhes na legenda, melhor a análise!* 😉✨",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        440,
+        0
+      ],
+      "id": "2ccbe7d6-9528-48ee-a3eb-2e90b9312683",
+      "name": "Evolution API",
+      "credentials": {
+        "evolutionApi": {
+          "id": "8Vyn5rMuwjwiaAUs",
+          "name": "Instancia Dev"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking ‘Test workflow’": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Evolution API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "311344e0-30e2-4ecc-8ef9-e8375f6ec053",
+  "triggerCount": 0,
+  "tags": [
+    {
+      "createdAt": "2025-05-30T11:31:18.780Z",
+      "updatedAt": "2025-05-30T11:31:18.780Z",
+      "id": "MkMWJqdLSlMeJZ5k",
+      "name": "claude_solution"
+    }
+  ]
+}
